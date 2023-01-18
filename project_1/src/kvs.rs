@@ -33,19 +33,12 @@ impl<K, V> Cache<K, V> for KvStore<K, V>
     /// Inserts a key-value pair into the map.
     /// If the map did not have this key present, None is returned.
     fn set(&mut self, key: K, value: V) {
-
         self.cache.insert(key, value);
-
     }
 
     fn get(&self, key: K) -> Option<V> {
 
-        let key = key.clone();
-
-        if let Some(v) = self.cache.get(&key) {
-            return Some(v.clone())
-        }
-        None
+        self.cache.get(&key).cloned()
     }
 
     fn remove_key(&mut self, key: K) -> bool {
