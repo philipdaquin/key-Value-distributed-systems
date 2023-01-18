@@ -1,0 +1,8 @@
+
+trait CliTool { 
+    
+}
+
+fn main() { 
+
+}

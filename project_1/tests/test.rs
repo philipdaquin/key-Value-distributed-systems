@@ -1,8 +1,8 @@
 use assert_cmd::prelude::*;
-use project_1::KvStore;
+use project_1::kvs::KvStore;
 use predicates::str::contains;
-use std::process::Command;
-
+use std::{process::Command, collections::HashMap};
+use project_1::kvs::Cache;
 // `kvs` with no args should exit with a non-zero code.
 #[test]
 fn cli_no_args() {
@@ -115,8 +115,9 @@ fn cli_invalid_subcommand() {
 // Should get previously stored value
 #[test]
 fn get_stored_value() {
-    let mut store = KvStore::new();
 
+    let mut store = KvStore::new();
+    
     store.set("key1".to_owned(), "value1".to_owned());
     store.set("key2".to_owned(), "value2".to_owned());
 
@@ -150,6 +151,6 @@ fn remove_key() {
     let mut store = KvStore::new();
 
     store.set("key1".to_owned(), "value1".to_owned());
-    store.remove("key1".to_owned());
+    store.remove_key("key1".to_owned());
     assert_eq!(store.get("key1".to_owned()), None);
 }

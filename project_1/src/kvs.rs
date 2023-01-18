@@ -1,26 +1,35 @@
 use std::{hash::Hash, fmt::Debug, collections::HashMap};
+use std::marker::Copy;
 
+pub trait Cache<K, V> 
+    where 
+        K: Debug + Hash + PartialEq + Eq  + Clone,
+        V: Debug + Clone  { 
 
-trait Cache<K, V> { 
+    fn new() -> Self;
     fn set(&mut self, key: K, value: V); 
     fn get(&self, key: K) -> Option<V>;
     fn remove_key(&mut self, key: K) -> bool;
     fn version_(&self);
 }
 
-struct KvStore<K, V> 
+pub struct KvStore<K, V> 
     where 
-        K: Debug + Hash + PartialEq + Eq,
-        V: Debug + Clone + Copy { 
+        K: Debug + Hash + PartialEq + Eq+ Clone,
+        V: Debug + Clone { 
 
-    cache: HashMap<K, V>
+    pub cache: HashMap<K, V>
 }
 
 impl<K, V> Cache<K, V> for KvStore<K, V> 
     where 
-        K: Debug + Hash + PartialEq + Eq,
-        V: Debug + Clone + Copy {
-    
+        K: Debug + Hash + PartialEq + Eq + Clone,
+        V: Debug + Clone {
+    fn new() -> Self {
+        Self { 
+            cache: HashMap::new()
+        }
+    }
     /// Inserts a key-value pair into the map.
     /// If the map did not have this key present, None is returned.
     fn set(&mut self, key: K, value: V) {
@@ -30,8 +39,11 @@ impl<K, V> Cache<K, V> for KvStore<K, V>
     }
 
     fn get(&self, key: K) -> Option<V> {
-        if let Some(&v) = self.cache.get(&key) {
-            return Some(v)
+
+        let key = key.clone();
+
+        if let Some(v) = self.cache.get(&key) {
+            return Some(v.clone())
         }
         None
     }
@@ -46,9 +58,4 @@ impl<K, V> Cache<K, V> for KvStore<K, V>
     fn version_(&self) {
         println!("Version 1.0")
     }
-        
-}
-
-fn main() { 
-    println!("Hello World")
 }
