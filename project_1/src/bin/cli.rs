@@ -1,11 +1,13 @@
 use clap::{Arg, Command, command, Subcommand};
 
+
 fn main() { 
     let matches = Command::new("cargo")
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
         .about(env!("CARGO_PKG_DESCRIPTION"))
         .name(env!("CARGO_PKG_NAME"))
+        
         .subcommand(
             Command::new("cargo")
                 .name("set")
@@ -62,7 +64,7 @@ fn main() {
                 eprintln!("unimplemented");
 
             },
-            _ => {}
+            _ => panic!()
         }
         
 }
