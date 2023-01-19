@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*;
-use project_1::kvs::KvStore;
 use predicates::str::contains;
 use std::{process::Command, collections::HashMap};
+use project_1::kvs::KvStore;
 use project_1::kvs::Cache;
 // `kvs` with no args should exit with a non-zero code.
 #[test]

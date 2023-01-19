@@ -1,5 +1,6 @@
-use clap::{Arg, Command, command, Subcommand};
-
+use clap::{Arg, Command, command, Subcommand, ArgMatches};
+use project_1::kvs::KvStore;
+use project_1::kvs::Cache;
 
 fn main() { 
     let matches = Command::new("cargo")
@@ -51,20 +52,45 @@ fn main() {
         
         
         .get_matches();
+        execute(matches);
 
-        match matches.subcommand_name() { 
-            Some("set") => {            
-                eprintln!("unimplemented");
-            },
-            Some("get") => {
-                eprintln!("unimplemented");
+        
+}
+
+
+
+fn execute(matches: ArgMatches) {
+    let mut store = KvStore::<String, String>::new();
+    match matches.subcommand() { 
+            Some(("set", arg)) => {     
+                
+                let key = &*arg.get_one::<String>("KEY").expect("Missing key");
+                let value = &*arg.get_one::<String>("KEY").expect("Missing value");
+                println!("Adding a {key} : {value}");
+                
+                store.set(key.to_string(), value.to_string());
 
             },
-            Some("rm") => {
-                eprintln!("unimplemented");
+            Some(("get", arg)) => {
+                println!("Getting the value for key: {arg:?}");
+
+                let key = &*arg.get_one::<String>("KEY").expect("Missing key");
+                println!("Getting value for Key: {key}");
+
+                let val = store.get(key.to_string());
+
+                println!("Value: {val:?}");
+                
+
+            },
+            Some(("rm", arg)) => {
+                
+                let key = &*arg.get_one::<String>("KEY").expect("Missing key");
+                println!("Remove the key for: {key}");
+
+                store.remove_key(key.to_string());
 
             },
             _ => panic!()
         }
-        
 }

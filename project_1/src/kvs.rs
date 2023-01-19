@@ -3,8 +3,8 @@ use std::marker::Copy;
 
 pub trait Cache<K, V> 
     where 
-        K: Debug + Hash + PartialEq + Eq  + Clone,
-        V: Debug + Clone  { 
+        K: Debug + Hash + PartialEq + Eq  + Clone + ?Sized,
+        V: Debug + Clone + ?Sized  { 
 
     fn new() -> Self;
     fn set(&mut self, key: K, value: V); 
@@ -15,16 +15,16 @@ pub trait Cache<K, V>
 
 pub struct KvStore<K, V> 
     where 
-        K: Debug + Hash + PartialEq + Eq+ Clone,
-        V: Debug + Clone { 
+        K: Debug + Hash + PartialEq + Eq + Clone + ?Sized,
+        V: Debug + Clone + ?Sized { 
 
     pub cache: HashMap<K, V>
 }
 
 impl<K, V> Cache<K, V> for KvStore<K, V> 
     where 
-        K: Debug + Hash + PartialEq + Eq + Clone,
-        V: Debug + Clone {
+        K: Debug + Hash + PartialEq + Eq + Clone + ?Sized,
+        V: Debug + Clone + ?Sized {
     fn new() -> Self {
         Self { 
             cache: HashMap::new()
