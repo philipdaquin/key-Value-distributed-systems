@@ -1,4 +1,7 @@
-# Log-Structure file I/O
+# The Design and Implementation of a Log Structured File System 
+An LFS is a type of file system that organises data as a log, rather than as a traditional file hierarchy. In LFS, all writes are appended to a single log file, which is called a "Write Ahead Log" (WAL). The log file is then periodically "checkpointed" to create a new version of the file system that can be quickly restored in case of a crash
+
+## Log-Structure file I/O
 Persistent key / Value store that can be accessed from the command line 
 
 ## Technical Specs:
