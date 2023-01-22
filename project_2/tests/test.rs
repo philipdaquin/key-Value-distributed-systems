@@ -1,5 +1,6 @@
 use assert_cmd::prelude::*;
-use kvs::{KvStore, Result};
+use project_2::kvs::{KvStore, Cache};
+use project_2::error::Result;
 use predicates::ord::eq;
 use predicates::str::{contains, is_empty, PredicateStrExt};
 use std::process::Command;
