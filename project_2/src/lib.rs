@@ -4,8 +4,8 @@ extern crate serde_json;
 extern crate anyhow;
 
 
-mod kvs;
+pub mod kvs;
 mod writer;
 mod command;
-mod error;
+pub mod error;
 mod reader;
