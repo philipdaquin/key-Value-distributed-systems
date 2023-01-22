@@ -1,6 +1,21 @@
 use std::{io::{Seek, BufWriter, Write, SeekFrom}, path::Path, fs::{OpenOptions, File}};
 use crate::{error::Result, reader::LogReaderWithPos};
 
+/// 
+/// LogWriterWithPos (Buffer Cache)
+/// In an LFS, buffering is used to improve the performance of write and read operations
+/// 
+/// `BufWriter`
+/// Keep an in memory buffer of data and writes it to an underlying writer 
+/// in larger, in frequent batchs, rather than writing each piece of data individually
+/// 
+/// This improve performance by reducing the number of disk I/O operation and 
+///     and by allowing the LFS to write data in a more controlled manner 
+/// 
+/// 
+/// `index`
+/// Keeps track of current position in the file 
+/// 
 pub struct LogWriterWithPos<W> where W: Write + Seek { 
     pub writer: BufWriter<W>, 
     pub index: u64

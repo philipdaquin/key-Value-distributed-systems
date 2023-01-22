@@ -1,6 +1,15 @@
 use std::io::{Read, BufReader, Seek, SeekFrom};
 use crate::error::Result;
 
+///
+/// LogReaderWithPos
+/// 
+/// Buffering can also improve read performance. When data is read from a buffer,
+/// it is already in memory, which allows for faster access than reading data directly disk
+/// 
+/// In addition, by using a technique like hinting, LFS can quickly locate a specific key in the 
+/// buffer instead of scanning the entire log, which improves read performance
+/// 
 pub struct LogReaderWithPos<R> where R: Read + Seek { 
     pub reader: BufReader<R>,
     pub index: u64
