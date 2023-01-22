@@ -1,4 +1,4 @@
-use std::{path::PathBuf, collections::HashMap, process::exit, io::{Write, Seek}, fs::File};
+use std::{path::PathBuf, collections::{HashMap, BTreeMap}, process::exit, io::{Write, Seek}, fs::File};
 use anyhow::Result;
 use serde::{Serialize, Deserialize};
 use crate::writer::LogWriterWithPos;
@@ -17,7 +17,7 @@ struct KvStore {
     // Locates position of inode of file
     inode: usize,
     // Locates position of inode in log
-    inode_map: HashMap<usize, LogWriterWithPos<File>>,
+    inode_map: BTreeMap<String, String>,
     
     index: Vec<usize>,
 
@@ -28,17 +28,24 @@ impl Cache for KvStore {
     fn get(&self, key: String) -> Result<Option<String>> {
         todo!()
     }
-
+    ///
+    /// If the key already exists, the previous value will be overwritten
+    /// 
     fn set(&mut self, key: String, value: String) {
 
+        // Represent the command
         let command = Command::Set(key, value);
-        
+        // Serialise the command to string 
         let command_string = serde_json::to_string(&command).expect("");
 
-        let index = self.writes.write(command_string.as_bytes()).expect("");
+        // Append the command to a file containing the log 
+        self.writes.write(command_string.as_bytes()).expect("");
+
+        if let Command::Set(k, v) = command { 
+            self.inode_map.insert(k, command_string);
+        }
 
 
-        self.inode_map.insert(index, value);
     }
 
     fn open(&self, path: impl Into<PathBuf>) -> Result<Self> where Self: Sized {
@@ -46,11 +53,11 @@ impl Cache for KvStore {
     }
 
     fn remove(&mut self, key: String) -> Result<()> {
-        if self.inode_map.contains_key(&key) { 
+        // if self.inode_map.contains_key(&key) { 
             println!("Key not found");
-            exit(0)
-        }
-        self.inode_map.remove(&key);
+            exit(0);
+        // }
+        // self.inode_map.remove(&key);
 
         Ok(())
     }
