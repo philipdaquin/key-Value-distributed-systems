@@ -16,6 +16,7 @@ pub trait Cache  {
     fn remove(&mut self, key: String) -> Result<()>; 
     fn version();
     fn compact(&mut self) -> Result<()>;
+    fn new_log_file(&mut self, gen: u64) -> Result<LogWriterWithPos<File>>;
 }
 
 // #[derive(Serialize, Deserialize, Clone, Default)]
@@ -77,7 +78,7 @@ impl Cache for KvStore {
         for &version in generation_list.iter() { 
             let mut log_reader = LogReaderWithPos::new(File::open(log_path(&path, version))?)?;
             
-            uncompacted_space += load_load_file(version, &mut log_reader, &mut index)?;
+            uncompacted_space += load_log_file(version, &mut log_reader, &mut index)?;
             reader.insert(version, log_reader);
         }
 
@@ -200,11 +201,68 @@ impl Cache for KvStore {
         println!("{}", env!("CARGO_PKG_VERSION"))
     }
 
+    ///
+    /// Compaction:
+    ///     - Is the process of reducing the size of the database by remove stale commands
+    ///     from the log 
+    /// 
     fn compact(&mut self) -> Result<()> { 
+        // Create a new generation number for the compacted log file 
         let compact_gen = self.curr_gen + 1;
         self.curr_gen += 2;
 
-        todo!()
+        // Create a new log file for the current generation 
+        self.writer = self.new_log_file(self.curr_gen)?;
+
+        // Keep track of the new position in the compacted log 
+        let mut new = 0;
+
+        // Create a new log file for the compacted generation 
+        let mut compact_writer = self.new_log_file(compact_gen)?;
+
+        for cmd in &mut self.index.values_mut() { 
+
+            // Check if the log reader exists 
+            if let Some(reader) = self.reader.get_mut(&cmd.generation_num) { 
+                if reader.index != cmd.position { 
+                    reader.seek(std::io::SeekFrom::Start(cmd.position))?;
+                }
+                let mut entry_reader = reader.take(cmd.len);
+                
+                let len = std::io::copy(&mut entry_reader, &mut compact_writer)?;
+                
+                // Update the entry 
+                *cmd = (compact_gen, new..new + len).into();
+
+                // increment the position 
+                new += len
+            }
+        }
+        compact_writer.flush()?;
+
+        // Collect stale generation numbers
+        let stale_gens = self
+            .reader
+            .keys()
+            .filter(|gen| gen < &&compact_gen)
+            .cloned()
+            .collect::<Vec<u64>>();
+
+        // Collect stale generation numbers 
+        for stale in stale_gens { 
+            self.reader.remove(&stale);
+            std::fs::remove_file(log_path(&self.directory, stale))?;
+
+        }
+        // reset the stale files 
+        self.uncompacted_space = 0;
+
+        Ok(())
+        
+    }
+
+    fn new_log_file(&mut self, gen: u64) -> Result<LogWriterWithPos<File>> {
+        LogWriterWithPos::<File>::new_log_file(&self.directory, gen, &mut self.reader)
     }
 
 }
@@ -233,7 +291,7 @@ fn log_path(direction: &Path, gen: u64) -> PathBuf {
     direction.join(format!("{}.log", gen))
 }
 
-fn load_load_file(
+fn load_log_file(
     generation: u64,  
     reader: &mut LogReaderWithPos<File>, 
     index: &mut BTreeMap<String, CmdMetadata>
