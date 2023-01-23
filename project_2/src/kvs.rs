@@ -1,9 +1,13 @@
 use std::{path::{PathBuf, Path}, collections::{HashMap, BTreeMap}, process::exit, io::{Write, Seek, Read}, fs::File, ffi::OsStr};
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, Deserializer};
+use tracing::Instrument;
 use crate::{writer::LogWriterWithPos, reader::LogReaderWithPos, error::CacheError, command::CmdMetadata};
 use crate::command::Command;
 use crate::error::Result;
 use std::fs;
+
+
+const MEM_THRESHOLD: u64 = 1024 * 1024;
 
 pub trait Cache  {
     fn get(&mut self, key: String) -> Result<Option<String>>;
@@ -11,6 +15,7 @@ pub trait Cache  {
     fn open(path: impl Into<PathBuf>) -> Result<Self> where Self: Sized;
     fn remove(&mut self, key: String) -> Result<()>; 
     fn version();
+    fn compact(&mut self) -> Result<()>;
 }
 
 // #[derive(Serialize, Deserialize, Clone, Default)]
@@ -41,7 +46,10 @@ pub struct KvStore {
 
     /// In memory Buffer Reader and reads data chunks 
     /// Key: Generational Number, Value: Reader 
-    reader: HashMap<u64, LogReaderWithPos<File>>
+    reader: HashMap<u64, LogReaderWithPos<File>>,
+
+    uncompacted_space: u64
+
 }
 
 impl Cache for KvStore {
@@ -56,16 +64,20 @@ impl Cache for KvStore {
         // In Memory Buffer Reader and Buffer Writer 
         let (mut reader, mut index) = (HashMap::new(), BTreeMap::new());
         // Current generational value 
-        let curr_gen = *sorted_generation(&path)?.last().unwrap_or(&0);
+        let curr_gen = *sorted_generation(&path)?.last().unwrap_or(&0) + 1;
         
         // Intialise writer with the current generational value and directory
         let writer = LogWriterWithPos::<File>::new_log_file(&path, curr_gen, &mut reader)?;
         
         let generation_list = sorted_generation(&path)?;
 
+        let mut uncompacted_space = 0;
+
         // Initialise all readers 
         for &version in generation_list.iter() { 
-            let  log_reader = LogReaderWithPos::new(File::open(log_path(&path, version))?)?;
+            let mut log_reader = LogReaderWithPos::new(File::open(log_path(&path, version))?)?;
+            
+            uncompacted_space += load_load_file(version, &mut log_reader, &mut index)?;
             reader.insert(version, log_reader);
         }
 
@@ -74,7 +86,8 @@ impl Cache for KvStore {
             index, 
             reader, 
             curr_gen,  
-            writer
+            writer,
+            uncompacted_space
         })
     }
 
@@ -139,6 +152,11 @@ impl Cache for KvStore {
         // Insert into the in memory key and value positions of command
         self.index.insert(key, (self.curr_gen, start..self.writer.index).into());
 
+
+        if self.uncompacted_space > MEM_THRESHOLD { 
+            self.compact()?;
+        }
+
         Ok(())
 
     }
@@ -181,6 +199,14 @@ impl Cache for KvStore {
     fn version() {
         println!("{}", env!("CARGO_PKG_VERSION"))
     }
+
+    fn compact(&mut self) -> Result<()> { 
+        let compact_gen = self.curr_gen + 1;
+        self.curr_gen += 2;
+
+        todo!()
+    }
+
 }
 
 ///
@@ -206,3 +232,36 @@ fn sorted_generation(path: &Path) -> Result<Vec<u64>> {
 fn log_path(direction: &Path, gen: u64) -> PathBuf { 
     direction.join(format!("{}.log", gen))
 }
+
+fn load_load_file(
+    generation: u64,  
+    reader: &mut LogReaderWithPos<File>, 
+    index: &mut BTreeMap<String, CmdMetadata>
+) -> Result<u64> { 
+
+    let mut start = reader.seek(std::io::SeekFrom::Start(0))?;
+    let mut stream = serde_json::Deserializer::from_reader(reader).into_iter::<Command>();
+    let mut uncompacted_data = 0;
+
+    while let Some(val) = stream.next() { 
+        // 
+        let new = stream.byte_offset() as u64;
+
+        match val? { 
+            Command::Set(key, _) => { 
+                if let Some(command) = index.insert(key, (generation, start..new).into()) { 
+                    uncompacted_data += command.len
+                }
+            }
+            Command::Remove(key) => { 
+                if let Some(command) = index.remove(&key) { 
+                    uncompacted_data += command.len;
+                }
+                uncompacted_data += new - start;
+            }
+            _ => {}
+        }
+        start = new
+    }
+    Ok(uncompacted_data)
+} 
