@@ -32,7 +32,7 @@ impl<R> Seek for LogReaderWithPos<R> where R: Read + Seek {
 }
 
 impl<R> LogReaderWithPos<R> where R: Read + Seek { 
-    fn new(mut inner: R) -> Result<Self> { 
+    pub fn new(mut inner: R) -> Result<Self> { 
         let index = inner.seek(SeekFrom::Current(0))?;
         Ok( Self { 
             reader: BufReader::new(inner),

@@ -50,3 +50,8 @@ On startup, the commands in the log are traversed from oldest to newest, and the
 When the size of the uncompacted log entries reach a given threshold, kvs compacts it into a new log, removing redundent entries to reclaim disk space.
 
 Note that our kvs project is both a stateless command-line program, and a library containing a stateful KvStore type: for CLI use the KvStore type will load the index, execute the command, then exit; for library use it will load the index, then execute multiple commands, maintaining the index state, until it is dropped.
+
+## Optimisations 
+Two optimisations can be done to fit more data:
+- Data compression 
+- Store only frequently used data in memory and the rest of disk (fitting everything in memory may be impossible)

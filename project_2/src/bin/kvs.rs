@@ -1,8 +1,11 @@
 use clap::{Arg, Command, command, Subcommand, ArgMatches};
-use project_2::kvs::KvStore;
-use project_2::kvs::Cache;
+use project_2::kvs::{KvStore, Cache};
+use project_2::error::{Result, CacheError};
 
-fn main() { 
+use std::env::current_dir;
+use std::process::exit;
+
+fn main() -> Result<()> { 
     let matches = Command::new("cargo")
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
@@ -10,19 +13,14 @@ fn main() {
         .name(env!("CARGO_PKG_NAME"))
         
         .subcommand(
-            Command::new("cargo")
-                .name("set")
-                .about("Set the value of any Key to any Value")
-                .arg(
-                    Arg::new("KEY")
-                        .help("A string key")
-                        .required(true)
-                )
+            Command::new("set")
+                .about("Set the value of a string key to a string")
+                .arg(Arg::new("KEY").help("A string key").required(true))
                 .arg(
                     Arg::new("VALUE")
-                    .help("the value of the key")
-                    .required(true)
-                )
+                        .help("The string value of the key")
+                        .required(true),
+                ),
         )
         .subcommand(
             Command::new("cargo")
@@ -52,45 +50,105 @@ fn main() {
         
         
         .get_matches();
-        execute(matches);
-
-        
-}
-
-
-
-fn execute(matches: ArgMatches) {
-    let mut store = KvStore::new();
-    match matches.subcommand() { 
+        match matches.subcommand() { 
             Some(("set", arg)) => {     
-                
+                let mut store = KvStore::open(current_dir()?)?;
+
+
                 let key = &*arg.get_one::<String>("KEY").expect("Missing key");
-                let value = &*arg.get_one::<String>("KEY").expect("Missing value");
+                let value = &*arg.get_one::<String>("VALUE").expect("Missing value");
                 println!("Adding a {key} : {value}");
                 
-                store.set(key.to_string(), value.to_string());
+                store.set(key.to_string(), value.to_string())?;
 
             },
             Some(("get", arg)) => {
+                let mut store = KvStore::open(current_dir()?)?;
+
                 println!("Getting the value for key: {arg:?}");
 
                 let key = &*arg.get_one::<String>("KEY").expect("Missing key");
                 println!("Getting value for Key: {key}");
 
-                let val = store.get(key.to_string());
-
-                println!("Value: {val:?}");
-                
-
+                if let Some(val) = store.get(key.to_string())? { 
+                    println!("{val:?}");
+                } else { 
+                   return Err(CacheError::KeyNotFound)
+                }
             },
             Some(("rm", arg)) => {
+                let mut store = KvStore::open(current_dir()?)?;
                 
                 let key = &*arg.get_one::<String>("KEY").expect("Missing key");
                 println!("Remove the key for: {key}");
 
-                store.remove_key(key.to_string());
+                match store.remove(key.to_string()) {
+                    Err(CacheError::KeyNotFound) => { 
+                        println!("Key not found!"); 
+                        exit(1)
+                    },
+                    Ok(()) => {},
+                    Err(e) => return Err(e)
+                };
+
+            },
+            Some(("-V", arg)) => {
+                KvStore::version()
+            },
+            _ => panic!()
+        }
+
+        Ok(())
+}
+
+
+
+fn execute(matches: ArgMatches) -> Result<()> {
+    match matches.subcommand() { 
+            Some(("set", arg)) => {     
+                let mut store = KvStore::open(current_dir()?)?;
+
+
+                let key = &*arg.get_one::<String>("KEY").expect("Missing key");
+                let value = &*arg.get_one::<String>("VALUE").expect("Missing value");
+                println!("Adding a {key} : {value}");
+                
+                store.set(key.to_string(), value.to_string())?;
+
+            },
+            Some(("get", arg)) => {
+                let mut store = KvStore::open(current_dir()?)?;
+
+                println!("Getting the value for key: {arg:?}");
+
+                let key = &*arg.get_one::<String>("KEY").expect("Missing key");
+                println!("Getting value for Key: {key}");
+
+                if let Some(val) = store.get(key.to_string())? { 
+                    println!("{val:?}");
+                } else { 
+                   return Err(CacheError::KeyNotFound)
+                }
+            },
+            Some(("rm", arg)) => {
+                let mut store = KvStore::open(current_dir()?)?;
+                
+                let key = &*arg.get_one::<String>("KEY").expect("Missing key");
+                println!("Remove the key for: {key}");
+
+                match store.remove(key.to_string()) {
+                    Err(CacheError::KeyNotFound) => { 
+                        println!("Key not found!"); 
+                        exit(1)
+                    },
+                    Ok(()) => {},
+                    Err(e) => return Err(e)
+                };
 
             },
             _ => panic!()
         }
+
+        Ok(())
+
 }

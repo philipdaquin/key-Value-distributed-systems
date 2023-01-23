@@ -1,111 +1,192 @@
-use std::{path::{PathBuf, Path}, collections::{HashMap, BTreeMap}, process::exit, io::{Write, Seek}, fs::File, ffi::OsStr};
+use std::{path::{PathBuf, Path}, collections::{HashMap, BTreeMap}, process::exit, io::{Write, Seek, Read}, fs::File, ffi::OsStr};
 use serde::{Serialize, Deserialize};
-use crate::{writer::LogWriterWithPos, reader::LogReaderWithPos, error::CacheError};
+use crate::{writer::LogWriterWithPos, reader::LogReaderWithPos, error::CacheError, command::CmdMetadata};
 use crate::command::Command;
 use crate::error::Result;
 use std::fs;
 
 pub trait Cache  {
-    fn get(&self, key: String) -> Result<Option<String>>;
+    fn get(&mut self, key: String) -> Result<Option<String>>;
     fn set(&mut self, key: String, value: String) -> Result<()>;
-    fn open(&self, path: impl Into<PathBuf>) -> Result<Self> where Self: Sized;
+    fn open(path: impl Into<PathBuf>) -> Result<Self> where Self: Sized;
     fn remove(&mut self, key: String) -> Result<()>; 
     fn version();
 }
 
 // #[derive(Serialize, Deserialize, Clone, Default)]
 pub struct KvStore { 
-
+    
+    /// `PathBuf`
+    ///  Represents a file or directory on the file system and provides method for with paths
     directory: PathBuf,
 
-    // Locates position of inode of file
-    current: u64,
+    /// Locates position of inode of file
+    /// 
+    /// Current generation number is a monotononicaly increasing integer that is 
+    /// assigned to each data file when it is created 
+    /// -   It is use to version control the data file and it is incremented each time the data file 
+    ///     is updated or rewritten 
+    /// 
+    /// -   Older version is the lower generation number, which is then considered state   
+    curr_gen: u64,
 
-    index: BTreeMap<String, Command>,
+    /// In memory key indexes to on disk values 
+    /// 
+    /// - `Command`: request or the representation of a request made to the database 
+    /// - A `BTreeMap` in memory stores the keys and the value locations for fast query 
+    index : BTreeMap<String, CmdMetadata>,
 
     /// in memory Buffer Writer and writes data individually  
     writer: LogWriterWithPos<File>,
 
     /// In memory Buffer Reader and reads data chunks 
+    /// Key: Generational Number, Value: Reader 
     reader: HashMap<u64, LogReaderWithPos<File>>
 }
 
 impl Cache for KvStore {
-    
-    /// 
-    /// Retrieve a value by key from a KVstore
-    /// 
-    fn get(&self, key: String) -> Result<Option<String>> {
-        if let Some(buffer) = self.index.get(&key) { 
-            if let Command::Get(value) = buffer { 
-               return Ok(Some(value.clone()))
-            } else { 
-                Err(CacheError::NotFound.into())
-            }
-        } else { 
-            Ok(None)
-        }
-        
-    }
-    ///
-    /// If the key already exists, the previous value will be overwritten
-    /// 
-    /// *** Improve performance of write by buffering a sequence of file changes 
-    ///     in the file cache and then writing all the chnage to disk sequentially 
-    fn set(&mut self, key: String, value: String) -> Result<()> {
-        // Represent the command
-        let command = Command::Set(key, value);
-        
-        // Serialise the command to I/O 
-        serde_json::to_writer(&mut self.writer, &command).expect("");
-
-        // Buffer forced to write to disk immediately
-        self.writer.flush()?;
-        
-        Ok(())
-
-    }
 
     ///
     /// Open a new or existing KvStore datastore for read only access
     /// The directory and all files in it must be readable by this process
     ///  
-    fn open(&self, path: impl Into<PathBuf>) -> Result<Self> where Self: Sized {
+    fn open(path: impl Into<PathBuf>) -> Result<Self> where Self: Sized {
         let path = path.into();
 
+        // In Memory Buffer Reader and Buffer Writer 
         let (mut reader, mut index) = (HashMap::new(), BTreeMap::new());
+        // Current generational value 
+        let curr_gen = *sorted_generation(&path)?.last().unwrap_or(&0);
+        
+        // Intialise writer with the current generational value and directory
+        let writer = LogWriterWithPos::<File>::new_log_file(&path, curr_gen, &mut reader)?;
+        
+        let generation_list = sorted_generation(&path)?;
 
-
+        // Initialise all readers 
+        for &version in generation_list.iter() { 
+            let  log_reader = LogReaderWithPos::new(File::open(log_path(&path, version))?)?;
+            reader.insert(version, log_reader);
+        }
 
         Ok(Self { 
             directory: path, 
             index, 
             reader, 
+            curr_gen,  
+            writer
         })
     }
 
-    ///
     /// 
-    /// Delete a key from Kvstore
+    /// Retrieve a value by key from a KVstore
     /// 
-    fn remove(&mut self, key: String) -> Result<()> {
-        if self.index.contains_key(&key) { 
-            self.index.remove(&key);
+    /// 1. First, it checks if the data is in memory cache (buffer cache)
+    /// 
+    /// 2. If the data is not in memory, it will be retrieved from the disk instead 
+    /// 
+    /// 3. We need an efficient way to find out which SStable contains the key
+    /// 
+    /// 4. SSTables return the result of the data set 
+    /// 
+    /// 5. The result of the data set is returned to the client
+    /// 
+    fn get(&mut self, key: String) -> Result<Option<String>> {
+        
+        // Check if the metadata is in memory 
+        if let Some(CmdMetadata { generation_num , position, len } ) = self.index.get(&key) { 
+            // Access the latest version 
+            if let Some(buffer_file) = self.reader.get_mut(generation_num) { 
+                buffer_file.seek(std::io::SeekFrom::Start(*position))?;
+                
+                let command = buffer_file.take(*len);
+
+                if let Command::Set(_, value) = serde_json::from_reader(command)? { 
+                    return Ok(Some(value))
+                } else { 
+                    Err(CacheError::KeyNotFound)
+                }
+            } else { 
+                Err(CacheError::KeyNotFound)
+            }
         } else { 
-            return Err(CacheError::KeyNotFound.into())
+            Err(CacheError::KeyNotFound)
         }
+    }
+    ///
+    /// If the key already exists, the previous value will be overwritten
+    /// 
+    /// Improve performance:  of write by buffering a sequence of file changes 
+    ///     in the file cache and then writing all the chnage to disk sequentially 
+    /// 
+    /// 1.  Create Command K / V
+    /// 
+    /// 2.  Serialise object into Stream I/O in memory cache 
+    /// 
+    /// 3.  Write into disk
+    /// 
+    /// 4. Set CommandPos in BTreeMap
+    /// 
+    fn set(&mut self, key: String, value: String) -> Result<()> {
+        // Represent the command
+        let start = self.writer.index;
+        // Serialise the command to I/O 
+        serde_json::to_writer(&mut self.writer, &Command::Set(key.clone(), value)).expect("");
+
+        // Buffer forced to write to disk immediately
+        self.writer.flush()?;
+
+        // Insert into the in memory key and value positions of command
+        self.index.insert(key, (self.curr_gen, start..self.writer.index).into());
 
         Ok(())
+
+    }
+
+    
+
+    ///
+    /// Delete a key from Kvstore
+    /// 
+    /// Error: `KeyNotFound` is the given key is not found 
+    /// 
+    /// Process 
+    /// 1. First, it checks if the data is in memory cache (buffer cache), else we return KeyNotFound Error
+    /// 
+    /// 2. We overwrite the command with Remove Command in buffer then we update the disk.
+    /// 
+    /// 3. WE update our original in memory cache 
+    /// 
+    fn remove(&mut self, key: String) -> Result<()> {
+        
+        if self.index.contains_key(&key) { 
+
+            let command = Command::Remove(key);
+
+            // Serialise the command to I/O 
+            serde_json::to_writer(&mut self.writer, &command).expect("");
+
+            // Buffer forced to write to disk immediately
+            self.writer.flush()?;
+
+            if let Command::Remove(val) = command { 
+                self.index.remove(&val).expect("Key not Found!");
+            }
+            Ok(())
+        } else { 
+            Err(CacheError::KeyNotFound.into())
+        }
     }
 
     fn version() {
-        println!("1.0")
+        println!("{}", env!("CARGO_PKG_VERSION"))
     }
 }
 
 ///
 /// A generation number is a ID that is used to 
 /// distinguish different versions of a file or data 
+/// 
 fn sorted_generation(path: &Path) -> Result<Vec<u64>> { 
     let mut gen_list: Vec<u64> = fs::read_dir(&path)?
         .flat_map(|res| -> Result<_> { Ok(res?.path()) })
@@ -120,4 +201,8 @@ fn sorted_generation(path: &Path) -> Result<Vec<u64>> {
         .collect();
     gen_list.sort_unstable();
     Ok(gen_list)
+}
+
+fn log_path(direction: &Path, gen: u64) -> PathBuf { 
+    direction.join(format!("{}.log", gen))
 }

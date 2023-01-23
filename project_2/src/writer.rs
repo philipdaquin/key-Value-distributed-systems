@@ -1,4 +1,4 @@
-use std::{io::{Seek, BufWriter, Write, SeekFrom}, path::Path, fs::{OpenOptions, File}};
+use std::{io::{Seek, BufWriter, Write, SeekFrom}, path::Path, fs::{OpenOptions, File}, collections::HashMap};
 use crate::{error::Result, reader::LogReaderWithPos};
 
 /// 
@@ -46,7 +46,7 @@ impl<W> Seek for LogWriterWithPos<W> where W: Write + Seek {
 
 impl<W> LogWriterWithPos<W> where W: Write + Seek { 
 
-    fn new(mut inner: W) -> Result<Self> { 
+    pub fn new(mut inner: W) -> Result<Self> { 
         let index = inner.seek(SeekFrom::Current(0))?;
         Ok( Self { 
             writer: BufWriter::new(inner),
@@ -54,14 +54,16 @@ impl<W> LogWriterWithPos<W> where W: Write + Seek {
         })
     }
 
-    fn new_log_file(path: &Path, gen: u64) -> Result<LogWriterWithPos<File>> { 
+    pub fn new_log_file(path: &Path, gen: u64, readers: &mut HashMap<u64, LogReaderWithPos<File>>) -> Result<LogWriterWithPos<File>> { 
         let mut file = OpenOptions::new()
             .append(true)
             .create(true)
             .write(true)
             .open(path)?;
-
         let log_writer = LogWriterWithPos::new(file)?;  
+
+
+        readers.insert(gen, LogReaderWithPos::new(File::open(&path)?)?);
 
         Ok(log_writer)
     }

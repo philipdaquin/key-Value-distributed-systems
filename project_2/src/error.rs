@@ -22,11 +22,11 @@ pub enum CacheError {
     #[error("Provided data was malformed")]
     MalformedData,
 
-    #[error("Unexpected error occurred")]
+    #[error("Unexpected command type")]
     UnexpectedError,
 
-    #[error("Unable to find key")]
-    KeyNotFound
+    #[error("Key not found")]
+    KeyNotFound,
 }
 
 impl From<io::Error> for CacheError { 
