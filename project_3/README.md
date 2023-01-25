@@ -32,7 +32,7 @@ Print an error and return a non-zero exit code on server error, or if IP-PORT do
 
 Get the string value of a given string key.
 
---addr accepts an IP address, either v4 or v6, and a port number, with the format IP:PORT. If --addr is not specified then connect on 127.0.0.1:4000.
+`--addr` accepts an IP address, either v4 or v6, and a port number, with the format `IP:PORT`. If `--addr` is not specified then connect on `127.0.0.1:4000`.
 
 Print an error and return a non-zero exit code on server error, or if IP-PORT does not parse as an address.
 
