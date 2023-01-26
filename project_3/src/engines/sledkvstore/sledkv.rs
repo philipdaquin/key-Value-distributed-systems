@@ -1,10 +1,21 @@
 use std::str::from_utf8;
 
-use sled::Db;
+use sled::{Db, Tree};
 use crate::{engines::KvsEngine, error::{Result, CacheError}};
+
+#[derive(Debug, Clone)]
 struct SledKvsEngine  { 
     store: Db
 }
+
+impl SledKvsEngine { 
+    fn new(store: Db) -> Self { 
+        Self { 
+            store
+        }
+    }
+}
+
 
 impl KvsEngine for SledKvsEngine {
     fn set(&mut self, key: String, value: String) -> Result<()> {
@@ -12,6 +23,7 @@ impl KvsEngine for SledKvsEngine {
         if let Err(e) = self.store.insert(key.as_bytes(), value.as_bytes()) { 
             return Err(CacheError::SledError(e))
         }
+        self.store.flush()?;
 
         Ok(())
     }
@@ -28,6 +40,9 @@ impl KvsEngine for SledKvsEngine {
         if let Ok(Some(_)) = self.store.remove(key) { 
             return Ok(())
         }
+
+        self.store.flush()?;
+
         Err(CacheError::KeyNotFound)
     }
 }
