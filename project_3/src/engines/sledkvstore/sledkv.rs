@@ -28,7 +28,7 @@ impl KvsEngine for SledKvsEngine {
         if let Ok(Some(_)) = self.store.remove(key) { 
             return Ok(())
         }
-        Ok(())
+        Err(CacheError::KeyNotFound)
     }
 }
 
