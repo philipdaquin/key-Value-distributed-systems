@@ -1,4 +1,5 @@
 pub mod kvstore;
+pub mod sledkvstore;
 use crate::error::Result;
 
 pub trait KvsEngine { 

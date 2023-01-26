@@ -2,6 +2,7 @@ use clap::{Arg, Command, command, Subcommand, ArgMatches};
 use project_3::kvs::{KvStore, Cache};
 use project_3::error::{Result, CacheError};
 use std::env::current_dir;
+use std::process::exit;
 
 fn main() -> Result<()> { 
     let matches = Command::new("kvs-server")

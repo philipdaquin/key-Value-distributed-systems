@@ -1,10 +1,10 @@
 use anyhow::Error as AnyHowError;
 use tracing::error;
-use thiserror::Error;
+use thiserror::Error ;
 use serde::Serialize;
 use std::io;
 
-
+use sled::Error as ErrorSled;
 pub type Result<T> = std::result::Result<T, CacheError>;
 
 #[derive(Debug, Error)]
@@ -27,6 +27,9 @@ pub enum CacheError {
 
     #[error("Key not found")]
     KeyNotFound,
+
+    #[error(transparent)]
+    SledError(ErrorSled)
 }
 
 impl From<io::Error> for CacheError { 
@@ -44,5 +47,11 @@ impl From<serde_json::Error> for CacheError {
             Syntax | Data => CacheError::MalformedData,
             _ => CacheError::UnexpectedError
         }
+    }
+}
+
+impl From<sled::Error> for CacheError {
+    fn from(value: ErrorSled) -> Self {
+        Self::SledError(value)
     }
 }
