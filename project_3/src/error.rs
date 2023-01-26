@@ -37,7 +37,7 @@ impl From<io::Error> for CacheError {
 
 impl From<serde_json::Error> for CacheError { 
     fn from(value: serde_json::Error) -> Self {
-        use serde_json::error::Category::{Data, Syntax, Io};
+        use serde_json::error::Category::{Data, Syntax};
         error!(err = ?value,  "JSON Serde error ocurred");
 
         match value.classify() { 
