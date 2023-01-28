@@ -19,6 +19,19 @@ impl<E> KvsServer<E> where E: KvsEngine {
         }
     } 
 
+    /// 
+    /// Aim: Start the server enginee
+    /// 
+    /// ### Input: 
+    /// - `A`: ToSocketAddrs
+    /// 
+    /// ### Panics 
+    /// - if unable to accept any connections, return `CacheError::ServerError`
+    /// 
+    /// ### Returns 
+    /// - Return<()>
+    /// 
+    /// 
     #[tracing::instrument(skip(addr), level = "debug")]
     fn run<A: ToSocketAddrs>(addr: A) -> Result<()> {  
         let listener = TcpListener::bind(addr).expect("Invalid TCP address");
@@ -35,10 +48,9 @@ impl<E> KvsServer<E> where E: KvsEngine {
         Ok(())
     }
     ///
-    /// 
-    /// Set TCP request from the client 
-    /// 
-    /// 
+    /// Process client TCP requests which comes in the form of TcpStream 
+    /// - `params` tcpStream handle incoming TCP connections  
+    /// - `throws` CacheError 
     #[tracing::instrument(skip(tcp, self), level = "debug")]
     fn serve(&mut self, tcp: TcpStream) -> Result<()> { 
 
