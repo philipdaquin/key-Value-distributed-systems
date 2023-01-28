@@ -42,7 +42,7 @@ impl<E> KvsServer<E> where E: KvsEngine {
             } else { 
 
                 log::error!("Connection failed");
-                return Err(CacheError::ServerError)
+                return Err(CacheError::UnexpectedError)
             }
         }
         Ok(())
@@ -80,11 +80,11 @@ impl<E> KvsServer<E> where E: KvsEngine {
                 },
                 Command::Get(key) => update_disk!(match self.engine.get(key) {
                     Ok(val) => Ok(val),
-                    Err(e) => Err(ServerResponse::Err(format!("{}", e)))
+                    Err(e) => Err(ServerResponse::<String>::Err(format!("{}", e)))
                 }),
                 Command::Remove(key) => update_disk!(match self.engine.remove(key) {
                     Ok(val) => Ok(val),
-                    Err(e) => Err(ServerResponse::Err(format!("{}", e)))
+                    Err(e) => Err(ServerResponse::<String>::Err(format!("{}", e)))
                 }),
             }
         }

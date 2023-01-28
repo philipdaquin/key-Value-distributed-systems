@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ServerResponse { 
-    Ok(()), 
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ServerResponse<T> { 
+    Ok(T), 
     Err(String)
 }
