@@ -42,3 +42,8 @@ opt-level = 'z'
 lto = true
 
 debug =true
+
+
+[[bench]]
+name = "benchmark"
+harness = false
