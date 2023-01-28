@@ -29,7 +29,10 @@ pub enum CacheError {
     KeyNotFound,
 
     #[error(transparent)]
-    SledError(ErrorSled)
+    SledError(ErrorSled),
+
+    #[error("Server error")]
+    ServerError
 }
 
 impl From<io::Error> for CacheError { 

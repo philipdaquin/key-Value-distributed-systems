@@ -67,7 +67,7 @@ impl KvStore {
     /// Open a new or existing KvStore datastore for read only access
     /// The directory and all files in it must be readable by this process
     ///  
-    fn open(path: impl Into<PathBuf>) -> Result<Self> where Self: Sized {
+    pub fn open(path: impl Into<PathBuf>) -> Result<Self> where Self: Sized {
         let path = path.into();
 
         // In Memory Buffer Reader and Buffer Writer 
@@ -99,7 +99,7 @@ impl KvStore {
             uncompacted_space
         })
     }
-    fn version() {
+    pub fn version() {
         println!("{}", env!("CARGO_PKG_VERSION"))
     }
 
