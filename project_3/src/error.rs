@@ -31,8 +31,8 @@ pub enum CacheError {
     #[error(transparent)]
     SledError(ErrorSled),
 
-    #[error("Server error")]
-    ServerError
+    #[error("Server error: {0}")]
+    ServerError(String)
 }
 
 impl From<io::Error> for CacheError { 
