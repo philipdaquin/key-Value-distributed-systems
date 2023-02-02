@@ -4,12 +4,12 @@ use sled::{Db, Tree};
 use crate::{engines::KvsEngine, error::{Result, CacheError}};
 
 #[derive(Debug, Clone)]
-struct SledKvsEngine  { 
+pub struct SledKvsEngine  { 
     store: Db
 }
 
 impl SledKvsEngine { 
-    fn new(store: Db) -> Self { 
+    pub fn new(store: Db) -> Self { 
         Self { 
             store
         }
