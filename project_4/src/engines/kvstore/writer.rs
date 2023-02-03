@@ -73,3 +73,34 @@ impl<W> LogWriterWithPos<W> where W: Write + Seek {
     }
    
 }
+pub struct KvWriter { 
+    /// Locates position of inode of file
+    /// 
+    /// Current generation number is a monotononicaly increasing integer that is 
+    /// assigned to each data file when it is created 
+    /// -   It is use to version control the data file and it is incremented each time the data file 
+    ///     is updated or rewritten 
+    /// 
+    /// -   Older version is the lower generation number, which is then considered state   
+    pub curr_gen: u64,
+
+    /// 
+    /// Writer 
+    /// - Is the write handle to the current log file
+    /// - So any write needs to mutable access to `writer`, adn the compaction
+    /// needs to change the `writer` and the `curr_gen`
+    pub writer: LogWriterWithPos<File>,
+
+    /// The number of bytes representing the 'stale' data
+    pub uncompacted_space: u64
+}
+
+impl Clone for KvWriter { 
+    fn clone(&self) -> Self {
+        Self {
+            curr_gen: self.curr_gen,
+            writer: self.writer,
+            uncompacted_space: self.uncompacted_space
+        }
+    }
+}

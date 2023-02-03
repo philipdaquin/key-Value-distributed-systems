@@ -1,4 +1,4 @@
-use std::io::{Read, BufReader, Seek, SeekFrom};
+use std::{io::{Read, BufReader, Seek, SeekFrom}, fs::File, collections::HashMap};
 use crate::error::Result;
 
 ///
@@ -38,5 +38,22 @@ impl<R> LogReaderWithPos<R> where R: Read + Seek {
             reader: BufReader::new(inner),
             index
         })
+    }
+}
+pub struct KvReader { 
+    /// 
+    /// Reader
+    /// - Is the read handle to the current log file. 
+    /// - It needs to change to a new log file after compact 
+    /// 
+    pub reader: HashMap<u64, LogReaderWithPos<File>>,
+}
+
+
+impl Clone for KvReader { 
+    fn clone(&self) -> Self {
+        Self {
+            reader: self.reader
+        }
     }
 }
