@@ -18,7 +18,7 @@ impl SledKvsEngine {
 
 
 impl KvsEngine for SledKvsEngine {
-    fn set(&mut self, key: String, value: String) -> Result<()> {
+    fn set(&self, key: String, value: String) -> Result<()> {
 
         if let Err(e) = self.store.insert(key.as_bytes(), value.as_bytes()) { 
             return Err(CacheError::SledError(e))
@@ -28,7 +28,7 @@ impl KvsEngine for SledKvsEngine {
         Ok(())
     }
 
-    fn get(&mut self, key: String) -> Result<Option<String>> {
+    fn get(&self, key: String) -> Result<Option<String>> {
         if let Ok(Some(val)) = self.store.get(key.as_bytes()) { 
             let res = from_utf8(&val).expect("Utf8 error").to_string();
             return Ok(Some(res))
@@ -36,7 +36,7 @@ impl KvsEngine for SledKvsEngine {
         Ok(None)
     }
 
-    fn remove(&mut self, key: String) -> Result<()> {
+    fn remove(&self, key: String) -> Result<()> {
         if let Ok(Some(_)) = self.store.remove(key) { 
             return Ok(())
         }

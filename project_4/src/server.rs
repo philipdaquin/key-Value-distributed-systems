@@ -90,4 +90,23 @@ impl<E> KvsServer<E> where E: KvsEngine {
         }
         Ok(())
     }
+    fn read_cmd(&self, tcp: &TcpStream) -> Result<Command> {
+        // Create a read and write data to the stream 
+        let reader = BufReader::new(tcp);
+        let mut writer = BufWriter::new(tcp);
+
+        // Deserialize the incoming data as a Command Request
+        let request = Deserializer::from_reader(reader).into_iter::<Command>();
+        
+        // First time actually using meta programming here 
+        for req in request { 
+            return Ok(req.expect("Reading Command Error"))
+        }
+
+        Err(CacheError::KeyNotFound)
+
+    }
+    fn process_cmd(&self, cmd: Command) -> Result<()> {
+        todo!()
+    }
 }

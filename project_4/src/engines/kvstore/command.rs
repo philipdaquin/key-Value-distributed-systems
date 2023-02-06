@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub enum Command  { 
     // Set {key, value }
     Set(String, String),
@@ -14,6 +14,7 @@ pub enum Command  {
     Remove(String)
 }
 /// Metadata of Command 
+#[derive(Clone)]
 pub struct CmdMetadata { 
     pub generation_num: u64,
     pub position: u64, 
