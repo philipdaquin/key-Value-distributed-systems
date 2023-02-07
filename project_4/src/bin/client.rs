@@ -68,6 +68,17 @@ struct Opt {
 fn main() -> Result<()> { 
     let opt = Opt::from_args();
 
+    if let Err(e) = match_cmds(opt) {
+        eprintln!("{e}");
+        exit(1)
+    }
+
+    Ok(())
+
+}
+
+
+fn match_cmds(opt: Opt) -> Result<()> {
     match opt.command {
         Command::Get { key, addr } => {
             // Connect to server 
@@ -90,5 +101,4 @@ fn main() -> Result<()> {
         },
     }
     Ok(())
-
 }

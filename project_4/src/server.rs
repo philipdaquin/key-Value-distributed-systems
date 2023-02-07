@@ -16,7 +16,7 @@ pub struct KvsServer<E: KvsEngine, T: ThreadPool> {
 }
 
 impl<E, T> KvsServer<E, T> where E:  KvsEngine, T: ThreadPool { 
-    fn new(engine: E, thread_pool: T) -> Self { 
+    pub fn new(engine: E, thread_pool: T) -> Self { 
         Self { 
             engine,
             thread_pool
@@ -37,7 +37,7 @@ impl<E, T> KvsServer<E, T> where E:  KvsEngine, T: ThreadPool {
     /// 
     /// 
     #[tracing::instrument(skip(addr, self), level = "debug")]
-    fn run<A: ToSocketAddrs>(&self, addr: A) -> Result<()> {  
+    pub fn run<A: ToSocketAddrs>(&self, addr: A) -> Result<()> {  
         let listener = TcpListener::bind(addr).expect("Invalid TCP address");
         
         for stream in listener.incoming() { 
