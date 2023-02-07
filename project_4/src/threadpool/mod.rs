@@ -1,4 +1,6 @@
 pub mod thread;
+pub mod rayon;
+pub mod shared_queue;
 
 use crate::error::Result;
 

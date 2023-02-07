@@ -26,13 +26,13 @@ impl<E, T> KvsServer<E, T> where E:  KvsEngine, T: ThreadPool {
     /// 
     /// Aim: Start the server enginee
     /// 
-    /// ### Input: 
+    /// Input: 
     /// - `A`: ToSocketAddrs
     /// 
-    /// ### Panics 
+    /// Panics 
     /// - if unable to accept any connections, return `CacheError::ServerError`
     /// 
-    /// ### Returns 
+    /// Returns 
     /// - Return<()>
     /// 
     /// 
@@ -41,7 +41,14 @@ impl<E, T> KvsServer<E, T> where E:  KvsEngine, T: ThreadPool {
         let listener = TcpListener::bind(addr).expect("Invalid TCP address");
         
         for stream in listener.incoming() { 
+            // For each incoming connections, it will have its own unique engine instance 
+            //
+            //
+            // `Sync` trait may be use when a type needs to be safe for concurrent use from 
+            //  threads, but since each spawned thread get its own engine instance, there's no need for 
+            //  the type to implement the `Sync` trait
             let engine = self.engine.clone();
+
 
             self.thread_pool.spawn(move || match stream { 
                 Ok(tcp ) => if let Err(e) = Self::serve(engine, tcp) {

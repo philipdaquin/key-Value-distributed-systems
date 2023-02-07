@@ -72,6 +72,7 @@ fn main() -> Result<()> {
         
         
         .get_matches();
+        
         match matches.subcommand() { 
             Some(("set", arg)) => {     
                 let mut store = KvStore::open(current_dir()?)?;
