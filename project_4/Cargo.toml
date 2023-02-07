@@ -19,6 +19,7 @@ tracing-subscriber = { version = "0.3.16", features = ["registry", "env-filter"]
 log = "0.4.17"
 parking_lot = "0.12.1"
 rayon = "1.6.1"
+crossbeam = "0.8.2"
 
 [dev-dependencies]
 assert_cmd = "2.0.8"
