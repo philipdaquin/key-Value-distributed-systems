@@ -1,11 +1,11 @@
 use super::{ThreadPool, ThreadPoolMessage};
 use crate::error::Result;
 
-pub struct NaiveThread;
+pub struct NaiveThreadPool;
 
-impl ThreadPool for NaiveThread {
+impl ThreadPool for NaiveThreadPool {
     fn new(num: u32) -> crate::error::Result<Self> where Self: Sized {
-        Ok(NaiveThread)
+        Ok(NaiveThreadPool)
     }
 
     fn spawn<F>(&self, job: F) -> Result<()> where F: FnOnce() + Send + 'static  {

@@ -1,8 +1,10 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use kvs::thread_pool::*;
-use kvs::Result;
+use project_4::threadpool::{*, rayon::RayonThreadPool, thread::NaiveThreadPool, shared_queue::SharedQueueThreadPool};
+use project_4::error::Result;
+
+
 
 use crossbeam_utils::sync::WaitGroup;
 
@@ -21,7 +23,7 @@ fn spawn_counter<P: ThreadPool>(pool: P) -> Result<()> {
                 counter.fetch_add(1, Ordering::SeqCst);
             }
             drop(wg);
-        })
+        })?
     }
 
     wg.wait();
@@ -40,7 +42,7 @@ fn spawn_panic_task<P: ThreadPool>() -> Result<()> {
             panic_control::disable_hook_in_current_thread();
 
             panic!();
-        })
+        })?
     }
 
     spawn_counter(pool)

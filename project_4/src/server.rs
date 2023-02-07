@@ -8,7 +8,7 @@ use crate::engines::kvstore::command::Command;
 use crate::error::{Result, CacheError};
 use crate::response::ServerResponse;
 use crate::threadpool::ThreadPool;
-use crate::threadpool::thread::NaiveThread;
+use crate::threadpool::thread::NaiveThreadPool;
 
 pub struct KvsServer<E: KvsEngine, T: ThreadPool> { 
     engine: E,
