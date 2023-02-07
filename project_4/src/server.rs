@@ -7,15 +7,19 @@ use crate::engines::KvsEngine;
 use crate::engines::kvstore::command::Command;
 use crate::error::{Result, CacheError};
 use crate::response::ServerResponse;
+use crate::threadpool::ThreadPool;
+use crate::threadpool::thread::NaiveThread;
 
-pub struct KvsServer<E: KvsEngine> { 
-    engine: E
+pub struct KvsServer<E: KvsEngine, T: ThreadPool> { 
+    engine: E,
+    thread_pool: T
 }
 
-impl<E> KvsServer<E> where E: KvsEngine { 
-    fn new(engine: E) -> Self { 
+impl<E, T> KvsServer<E, T> where E:  KvsEngine, T: ThreadPool { 
+    fn new(engine: E, thread_pool: T) -> Self { 
         Self { 
-            engine
+            engine,
+            thread_pool
         }
     } 
 
@@ -32,18 +36,22 @@ impl<E> KvsServer<E> where E: KvsEngine {
     /// - Return<()>
     /// 
     /// 
-    #[tracing::instrument(skip(addr), level = "debug")]
-    fn run<A: ToSocketAddrs>(addr: A) -> Result<()> {  
+    #[tracing::instrument(skip(addr, self), level = "debug")]
+    fn run<A: ToSocketAddrs>(&self, addr: A) -> Result<()> {  
         let listener = TcpListener::bind(addr).expect("Invalid TCP address");
         
         for stream in listener.incoming() { 
-            if let Ok(tcp) = stream {
-                log::info!("Connected server at {}",  tcp.peer_addr()?);
-            } else { 
+            let engine = self.engine.clone();
 
-                log::error!("Connection failed");
-                return Err(CacheError::UnexpectedError)
-            }
+            self.thread_pool.spawn(move || match stream { 
+                Ok(tcp ) => if let Err(e) = Self::serve(engine, tcp) {
+                    log::error!("Something went wrong: {e}");
+                },
+                Err(e) => {
+                    log::error!("Connection failed {e}");
+                    // Err::<((), CacheError)>(CacheError::UnexpectedError);
+                }
+            })?;
         }
         Ok(())
     }
@@ -51,8 +59,8 @@ impl<E> KvsServer<E> where E: KvsEngine {
     /// Process client TCP requests which comes in the form of TcpStream 
     /// - `params` tcpStream handle incoming TCP connections  
     /// - `throws` CacheError 
-    #[tracing::instrument(skip(tcp, self), level = "debug")]
-    fn serve(&mut self, tcp: TcpStream) -> Result<()> { 
+    #[tracing::instrument(skip(tcp, engine), level = "debug")]
+    fn serve(engine: E, tcp: TcpStream) -> Result<()> { 
 
         // Create a read and write data to the stream 
         let reader = BufReader::new(&tcp);
@@ -74,39 +82,20 @@ impl<E> KvsServer<E> where E: KvsEngine {
         for req in request { 
             match req? {
                 Command::Set(key, val) => {
-                    self.engine.set(key.clone(), val.clone())?;
+                    engine.set(key.clone(), val.clone())?;
                     serde_json::to_writer(&mut writer, &Command::Set(key, val))?;
                     writer.flush()?;
                 },
-                Command::Get(key) => update_disk!(match self.engine.get(key) {
+                Command::Get(key) => update_disk!(match engine.get(key) {
                     Ok(val) => Ok(val),
                     Err(e) => Err(ServerResponse::<String>::Err(format!("{}", e)))
                 }),
-                Command::Remove(key) => update_disk!(match self.engine.remove(key) {
+                Command::Remove(key) => update_disk!(match engine.remove(key) {
                     Ok(val) => Ok(val),
                     Err(e) => Err(ServerResponse::<String>::Err(format!("{}", e)))
                 }),
             }
         }
         Ok(())
-    }
-    fn read_cmd(&self, tcp: &TcpStream) -> Result<Command> {
-        // Create a read and write data to the stream 
-        let reader = BufReader::new(tcp);
-        let mut writer = BufWriter::new(tcp);
-
-        // Deserialize the incoming data as a Command Request
-        let request = Deserializer::from_reader(reader).into_iter::<Command>();
-        
-        // First time actually using meta programming here 
-        for req in request { 
-            return Ok(req.expect("Reading Command Error"))
-        }
-
-        Err(CacheError::KeyNotFound)
-
-    }
-    fn process_cmd(&self, cmd: Command) -> Result<()> {
-        todo!()
     }
 }
