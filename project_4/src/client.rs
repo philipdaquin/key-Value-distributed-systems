@@ -6,7 +6,7 @@ use crate::{engines::kvstore::{command::Command, kvs::Cache}, response::ServerRe
 
 use crate::error::Result;
 
-trait Client { 
+pub trait Client { 
     fn connect<T: ToSocketAddrs>(addr: T) -> Result<Self> where Self: Sized;
     fn get(&mut self, key: String) -> Result<Option<String>>;
     fn set(&mut self, key: String, value: String) -> Result<()>;

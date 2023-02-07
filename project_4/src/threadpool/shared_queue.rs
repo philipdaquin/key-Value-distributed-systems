@@ -19,12 +19,9 @@ impl ThreadPool for SharedQueueThreadPool {
             
             std::thread::Builder::new().spawn(move || run_task(recv))?;
         }
-
-
-        todo!()
-
-
-
+         Ok(Self { 
+            pool: sender
+        })
     }
 
     fn spawn<F>(&self, job: F) -> crate::error::Result<()>
