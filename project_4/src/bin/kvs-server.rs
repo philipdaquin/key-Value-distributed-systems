@@ -8,18 +8,34 @@ use project_4::engines::sledkvstore::sledvs::SledKvsEngine;
 use project_4::server::KvsServer;
 use project_4::threadpool::rayon::RayonThreadPool;
 use project_4::error::{Result, CacheError};
-use structopt::StructOpt;
+use structopt::{StructOpt};
 use project_4::threadpool::ThreadPool;
 use strum::{EnumString, EnumVariantNames, VariantNames, Display};
 use log::LevelFilter;
 use std::env;
 use env_logger;
 
+const V: &[&str] = &["Engines::VARIANTS"];
+
+// #[derive(EnumString, EnumVariantNames, Debug, PartialEq, Eq, Clone, Copy, Display)]
+// #[allow(non_camel_case_types)]
+// enum Engines { 
+//     kvs,
+//     sled
+// }
 #[derive(EnumString, EnumVariantNames, Debug, PartialEq, Eq, Clone, Copy, Display)]
 #[allow(non_camel_case_types)]
+// #[strum(serialize_all = "kebab_case")]
 enum Engines { 
     kvs,
     sled
+}
+
+
+impl Engines { 
+    fn variants() -> [&'static str; 2] { 
+        ["kvs", "sled"]
+    }
 }
 
 
@@ -37,8 +53,7 @@ struct Opt {
     #[structopt(
         long, 
         value_name = "ENGINE-NAME",
-        possible_values = &Engines::VARIANTS,
-        case_insensitive = true,
+        possible_values = V,
     )]
     engine: Option<Engines>
 }
@@ -59,8 +74,6 @@ fn check_current_engine() -> Result<Option<Engines>> {
             Ok(None)
         } 
     }
-
-
 }
 
 

@@ -59,6 +59,7 @@ impl KvStore {
     pub fn open(path: impl Into<PathBuf>) -> Result<Self> where Self: Sized {
         let path = Arc::new(path.into());
 
+        // log::info!("✅✅✅✅");
         std::fs::create_dir_all(&*path)?;
 
 
