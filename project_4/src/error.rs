@@ -3,6 +3,7 @@ use tracing::error;
 use thiserror::Error ;
 use serde::Serialize;
 use std::io;
+use std::string::FromUtf8Error;
 
 use sled::Error as ErrorSled;
 pub type Result<T> = std::result::Result<T, CacheError>;
@@ -13,8 +14,8 @@ pub enum CacheError {
     #[error("Could not find resource")]
     NotFound,
 
-    #[error("Input / Output operation fails")]
-    IoError(io::Error), 
+    #[error("Input / Output operation fails: {0:#?}")]
+    IoError(#[source] io::Error), 
     
     #[error("Serialisation Error")]
     SerdeError,
@@ -31,8 +32,12 @@ pub enum CacheError {
     #[error(transparent)]
     SledError(ErrorSled),
 
-    #[error("Server error: {0}")]
-    ServerError(String)
+    #[error("Server error: {0:#?}")]
+    ServerError(String),
+
+    #[error("UTF-8: {}", 0)]
+    Utf8(#[source] FromUtf8Error),
+
 }
 
 impl From<io::Error> for CacheError { 
@@ -52,6 +57,13 @@ impl From<serde_json::Error> for CacheError {
         }
     }
 }
+
+impl From<FromUtf8Error> for CacheError {
+    fn from(err: FromUtf8Error) -> CacheError {
+        CacheError::Utf8(err)
+    }
+}
+
 
 impl From<sled::Error> for CacheError {
     fn from(value: ErrorSled) -> Self {

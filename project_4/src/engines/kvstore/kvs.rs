@@ -59,6 +59,9 @@ impl KvStore {
     pub fn open(path: impl Into<PathBuf>) -> Result<Self> where Self: Sized {
         let path = Arc::new(path.into());
 
+        std::fs::create_dir_all(&*path)?;
+
+
         // In Memory Buffer Reader and Buffer Writer 
         let (mut reader, 
             mut index) = (HashMap::new(), BTreeMap::new());

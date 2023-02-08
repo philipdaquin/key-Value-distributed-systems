@@ -7,24 +7,21 @@ use project_4::engines::kvstore::kvs::KvStore;
 use project_4::engines::sledkvstore::sledvs::SledKvsEngine;
 use project_4::server::KvsServer;
 use project_4::threadpool::rayon::RayonThreadPool;
-use structopt::clap::{arg_enum};
 use project_4::error::{Result, CacheError};
 use structopt::StructOpt;
 use project_4::threadpool::ThreadPool;
+use strum::{EnumString, EnumVariantNames, VariantNames, Display};
+use log::LevelFilter;
+use std::env;
+use env_logger;
 
-
-
-arg_enum! {
-    
-    #[derive(StructOpt, Debug, PartialEq, Eq, Clone, Copy)]
-    enum Engines { 
-        KVS,
-        SLED
-    }
-
+#[derive(EnumString, EnumVariantNames, Debug, PartialEq, Eq, Clone, Copy, Display)]
+#[allow(non_camel_case_types)]
+enum Engines { 
+    kvs,
+    sled
 }
 
-const ENGINE_VARIANTS: &[&str] = &["&Engines::variants()"];
 
 #[derive(StructOpt, Debug, Clone)]
 #[structopt(name = "kvs-server")]
@@ -40,7 +37,8 @@ struct Opt {
     #[structopt(
         long, 
         value_name = "ENGINE-NAME",
-        possible_values = ENGINE_VARIANTS
+        possible_values = &Engines::VARIANTS,
+        case_insensitive = true,
     )]
     engine: Option<Engines>
 }
@@ -68,22 +66,26 @@ fn check_current_engine() -> Result<Option<Engines>> {
 
 
 fn main() -> Result<()> { 
-    let mut opt = Opt::from_args();
 
+    env_logger::builder()
+    .filter_level(LevelFilter::Info)
+    .init();
+
+    let mut opt = Opt::from_args();
     let engine = check_current_engine()?
         .ok_or(|e| CacheError::ServerError(e));
 
     if let Ok(v) = engine { 
         
-        
-        if opt.engine.is_none() {
-            opt.engine = Some(v);
-        } 
-    
-        if opt.engine.unwrap() != v {
-            log::error!("Wrong Engine");
-        } 
 
+        if let Some(curr) = opt.engine { 
+            if v != curr {  
+                log::error!("Wrong Engine");
+                exit(1)
+            }
+        } else { 
+            opt.engine = Some(v)
+        }
     } 
 
     if let Err(e) = run_server(opt) {
@@ -96,7 +98,7 @@ fn main() -> Result<()> {
 }
 
 fn run_server(opt: Opt) -> Result<()> {
-    let current_engine = opt.engine.unwrap_or(Engines::KVS);
+    let current_engine = opt.engine.unwrap_or(Engines::kvs);
     
     log::info!("kvs-server {}", env!("CARGO_PKG_VERSION"));
     
@@ -109,13 +111,13 @@ fn run_server(opt: Opt) -> Result<()> {
     let pool = RayonThreadPool::new(1)?;
 
     match current_engine {
-        Engines::KVS => {
+        Engines::kvs => {
 
             let store = KvStore::open(current_dir()?)?;
             let server = KvsServer::new(store, pool);
             server.run(opt.addr)?;
         },
-        Engines::SLED => {
+        Engines::sled => {
             server_spawn(
                 SledKvsEngine::new(sled::open(current_dir()?)?),
                 pool,

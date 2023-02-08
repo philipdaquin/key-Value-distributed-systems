@@ -2,11 +2,14 @@ use project_4::client::{KvsClient, Client};
 use project_4::engines::KvsEngine;
 use project_4::engines::kvstore::kvs::{KvStore, Cache};
 use project_4::error::{Result, CacheError};
-use structopt::StructOpt;
-
+use structopt::{StructOpt, clap::AppSettings::{DisableHelpSubcommand, VersionlessSubcommands}};
 use std::env::current_dir;
 use std::net::SocketAddr;
 use std::process::exit;
+
+
+const GLOBAL_SETTINGS: &[&str] = &["&[DisableHelpSubcommand]"];
+
 
 #[derive(StructOpt, Debug)]
 enum Command { 
@@ -58,7 +61,11 @@ enum Command {
 
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "kvs-client")]
+#[structopt(
+    name = "kvs-client", 
+    global_setting = DisableHelpSubcommand, 
+    global_setting = VersionlessSubcommands
+)]
 struct Opt { 
     #[structopt(subcommand)]
     command: Command
@@ -70,7 +77,7 @@ fn main() -> Result<()> {
 
     if let Err(e) = match_cmds(opt) {
         eprintln!("{e}");
-        exit(1)
+        exit(1);
     }
 
     Ok(())
