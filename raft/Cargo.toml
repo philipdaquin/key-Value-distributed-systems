@@ -11,3 +11,34 @@ edition = "2021"
 
 labcodec = { path = "../crates/labcodec" }
 labrpc = { path = "../crates/labrpc" }
+
+[dev-dependencies]
+assert_cmd = "2.0.8"
+criterion = "0.4.0"
+crossbeam-utils = "0.8.14"
+predicates = "2.1.5"
+rand = "0.8.5"
+tempfile = "3.0.7"
+walkdir = "2.2.7"
+panic-control = "0.1.4"
+
+
+[profile.release]
+
+# Less code to include into binary
+panic = 'abort'
+
+# Optimization over all codebase ( better optimization, slower build )
+codegen-units = 1
+
+# Optimization for size ( most aggressive )
+opt-level = 'z'
+
+# Link time optimization using using whole-program analysis
+lto = true
+
+debug =true
+
+[[bench]]
+name = "my_bench"
+harness = false
