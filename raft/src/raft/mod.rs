@@ -37,7 +37,7 @@ trait RaftService {
 
 }
 
-struct Raft { 
+pub struct Raft { 
     peers: Vec<RaftClient>,
 
     persister: Box<dyn Persister>,
