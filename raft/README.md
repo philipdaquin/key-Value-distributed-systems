@@ -21,3 +21,6 @@ Keep in mind that the most challenging part of this lab may not be implementing 
 We also provide a diagram of Raft interactions that can help clarify how your Raft code interacts with the layers on top of it.
 
 This lab is due in four parts. You must submit each part on the corresponding due date.
+
+## Part 2A: Leader Election
+Implement Raft leader election and heartbeats (`AppendEntries` RPCs with no log entries). The goal for Part 2A is for a single leader to be elected, for the leader to remain the leader if there are no failures, and for a new leader to take over if the old leader fails or if packets to/from the old leader are lost. Run `go test -run 2A ` to test your 2A code.

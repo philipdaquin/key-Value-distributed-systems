@@ -1,0 +1,36 @@
+application {
+  config {
+    baseName raft
+  }
+  entities *
+}
+
+
+
+
+/** Product sold by the Online store */
+entity State {
+    // Latest term serverhas been 
+    current_term Integer unique required 
+    
+    // CandidateId that received vote in current term(nullable)
+    voted_for Integer 
+
+    logs Command
+
+    commit_index Integer
+
+    last_applied Integer
+
+    next_index Integer
+
+    match_index Integer
+
+}
+
+enum Command { 
+    ADD
+    REMOVE
+    SET 
+    GET
+}
