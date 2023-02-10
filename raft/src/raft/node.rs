@@ -2,7 +2,6 @@ use super::Raft;
 use anyhow::Result;
 
 pub trait NodeObject { 
-    
     fn new(raft: Raft) -> Self;
     fn start<M: labcodec::Message>(&self, command: &M) -> Result<(u64, u64)>;
     fn get_state(&self);
