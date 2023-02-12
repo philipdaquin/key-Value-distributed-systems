@@ -14,6 +14,14 @@ import "strconv"
 // and reply for an RPC.
 //
 
+type workerStatus int
+
+const (
+	Idle workerStatus = iota
+	Working
+	Done
+)
+
 type ExampleArgs struct {
 	X int
 }
@@ -23,6 +31,28 @@ type ExampleReply struct {
 }
 
 // Add your RPC definitions here.
+type TaskArgs struct {
+	// Worker Id 
+	WorkerId int
+	
+	// Worker Status 
+	WorkerStatus workerStatus
+
+	// Finsihed Task 
+	CompletedTasks []string
+}
+
+type TaskReply struct {
+	// Worker Id 
+	WorkerId int
+	
+	// Worker Status 
+	WorkerStatus workerStatus
+
+	ImpendingTasks []string
+
+	NReduce int
+}
 
 
 // Cook up a unique-ish UNIX-domain socket name
