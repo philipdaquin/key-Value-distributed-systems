@@ -1,14 +1,37 @@
 package mr
 
-import "log"
-import "net"
-import "os"
-import "net/rpc"
-import "net/http"
+import (
+	"log"
+	"net"
+	"net/http"
+	"net/rpc"
+	"os"
+	"sync"
+	"time"
+)
+
+
+type MapTasks struct { 
+	id int
+	file string 
+	startAt time.Time
+	isDone bool
+}
+
+type ReduceTasks struct { 
+	id int 
+	files []string
+	startAt time.Time
+	isDone bool 
+}
 
 
 type Coordinator struct {
-	// Your definitions here.
+	locks sync.Mutex
+	reduceTasks []ReduceTasks
+	mapTasks []MapTasks
+	mapLeft int 
+	reduceLeft int
 
 }
 
@@ -46,12 +69,9 @@ func (c *Coordinator) server() {
 // if the entire job has finished.
 //
 func (c *Coordinator) Done() bool {
-	ret := false
-
-	// Your code here.
-
-
-	return ret
+	c.locks.Lock()
+	defer c.locks.Unlock()
+	return c.mapLeft == 0 && c.reduceLeft == 0
 }
 
 //
@@ -60,9 +80,29 @@ func (c *Coordinator) Done() bool {
 // nReduce is the number of reduce tasks to use.
 //
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
-	c := Coordinator{}
+	c := Coordinator{
+
+		mapTasks: make([]MapTasks, len(files)),
+		reduceTasks: make([]ReduceTasks, nReduce),
+		mapLeft: len(files),
+		reduceLeft: nReduce,
+	}
 
 	// Your code here.
+	
+	
+	// Intialise Map 
+	for idx, file := range files { 
+		c.mapTasks[idx] = MapTasks{id: idx, file: file, isDone: false}
+	}
+
+
+	// Initialise Reduce 
+	for idx := 0; idx < nReduce; idx +=1 { 
+		c.reduceTasks[idx] = ReduceTasks{id: idx, isDone: false}
+	}
+
+
 
 
 	c.server()

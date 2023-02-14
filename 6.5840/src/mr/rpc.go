@@ -20,6 +20,11 @@ const (
 	Idle workerStatus = iota
 	Working
 	Done
+	Map
+	Reduce
+	Sleep
+	Exit
+
 )
 
 type ExampleArgs struct {
@@ -53,7 +58,6 @@ type TaskReply struct {
 
 	NReduce int
 }
-
 
 // Cook up a unique-ish UNIX-domain socket name
 // in /var/tmp, for the coordinator.
