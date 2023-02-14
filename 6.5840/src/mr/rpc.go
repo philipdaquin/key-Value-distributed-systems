@@ -24,6 +24,7 @@ const (
 	Reduce
 	Sleep
 	Exit
+	None
 
 )
 

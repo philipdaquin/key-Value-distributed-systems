@@ -49,25 +49,28 @@ func ihash(key string) int {
 // 
 func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
+	fmt.Println("🧢 Worker ")
 
 	// Your worker implementation here.
-	args := TaskArgs{WorkerStatus: Done}
+	var args TaskArgs = TaskArgs{WorkerStatus: None}
 	
-	newTask := GetNextTask(args)
-
-	switch newTask.WorkerStatus {
-		case Map:
-			args = MapTask(newTask, mapf)
-		case Reduce:
-			args = ReduceTask(newTask.ImpendingTasks, reducef, newTask.WorkerId )
-		case Sleep:
-			time.Sleep(500 * time.Millisecond)
-			args = TaskArgs{WorkerStatus: Done}
-		case Exit:	
-			return 
-		default:
-			fmt.Println("sdasdasdasd")
-
+	for {
+			newTask := GetNextTask(&args)
+		
+			switch newTask.WorkerStatus {
+				case Map:
+					args = MapTask(newTask, mapf)
+				case Reduce:
+					args = ReduceTask(newTask.ImpendingTasks, reducef, newTask.WorkerId )
+				case Sleep:
+					time.Sleep(500 * time.Millisecond)
+					args = TaskArgs{WorkerStatus: Done}
+				case Exit:	
+					return 
+				default:
+					fmt.Println("sdasdasdasd")
+		
+			}
 	}
 
 	// if ok := call(coordinator, &args, &reply); ok {
@@ -79,12 +82,16 @@ func Worker(mapf func(string, string) []KeyValue,
 	// CallExample()
 }
 
-func GetNextTask(completed TaskArgs) TaskReply {
+func GetNextTask(completed *TaskArgs) TaskReply {
+	fmt.Println("🧢 Getting the next task ")
+
 	nextTask := TaskReply{}
 
-	if ok := call("Coordinator.GetNextTask", &completed, &nextTask); !ok {
+	ok := call("Coordinator.GetTask", completed, &nextTask) 
+	
+	if !ok {
 		fmt.Println("Failed to get response")
-		os.Exit(1)
+		os.Exit(0)
 	}
 	return nextTask
 }
@@ -101,7 +108,7 @@ func GetNextTask(completed TaskArgs) TaskReply {
 
 */
 func MapTask(nextTask TaskReply, mapf func(string, string) []KeyValue) TaskArgs {
-	
+	fmt.Println("👷 Map Worker ")
 	// Retrieve the first task from the `impending`
 	task := nextTask.ImpendingTasks[0]
 
@@ -160,6 +167,9 @@ func ReduceTask(
 	reducef func(string, []string) string, 
 	nextTaskId int,
 	) TaskArgs {
+
+	fmt.Println("🚀 Reduce Worker ")
+
 	kv := []KeyValue{}
 
 	for _, fileName := range file {
