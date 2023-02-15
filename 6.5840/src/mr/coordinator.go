@@ -189,6 +189,9 @@ func (c *Coordinator) server() {
 // if the entire job has finished.
 //
 func (c *Coordinator) Done() bool {
+
+	fmt.Println("✅ Coordinator Done!")
+
 	c.locks.Lock()
 	defer c.locks.Unlock()
 	return c.mapLeft == 0 && c.reduceLeft == 0
@@ -200,6 +203,12 @@ func (c *Coordinator) Done() bool {
 // nReduce is the number of reduce tasks to use.
 //
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
+	
+	if len(files) == 0 {
+		log.Fatalf("❌ Empty Files")
+	}
+	
+	
 	c := Coordinator{
 
 		mapTasks: make([]MapTasks, len(files)),

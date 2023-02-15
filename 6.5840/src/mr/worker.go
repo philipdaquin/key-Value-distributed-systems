@@ -50,12 +50,12 @@ func ihash(key string) int {
 func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 	fmt.Println("🧢 Worker ")
-
+	var newTask TaskReply
 	// Your worker implementation here.
 	var args TaskArgs = TaskArgs{WorkerStatus: None}
 	
 	for {
-			newTask := GetNextTask(&args)
+			newTask = GetNextTask(&args)
 		
 			switch newTask.WorkerStatus {
 				case Map:
@@ -64,11 +64,11 @@ func Worker(mapf func(string, string) []KeyValue,
 					args = ReduceTask(newTask.ImpendingTasks, reducef, newTask.WorkerId )
 				case Sleep:
 					time.Sleep(500 * time.Millisecond)
-					args = TaskArgs{WorkerStatus: Done}
+					args = TaskArgs{WorkerStatus: None}
 				case Exit:	
 					return 
 				default:
-					fmt.Println("sdasdasdasd")
+					panic(fmt.Sprintf("unknown type: %v", newTask.WorkerStatus))
 		
 			}
 	}
