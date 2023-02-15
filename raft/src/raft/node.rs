@@ -20,8 +20,9 @@ pub trait NodeObject {
 
 #[derive(Clone)]
 pub struct Node { 
-
-
+    log: todo!(),
+    current_term: u64,
+    voted_for: u64
 }
 
 impl NodeObject for Node {
