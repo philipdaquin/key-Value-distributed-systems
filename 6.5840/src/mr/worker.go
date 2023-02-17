@@ -59,15 +59,37 @@ func Worker(mapf func(string, string) []KeyValue,
 		
 			switch newTask.WorkerStatus {
 				case Map:
-					args = MapTask(newTask, mapf)
+					fmt.Println("✅ MAP")
+
+					args = MapTask(&newTask, mapf)
+
+					fmt.Println("{}", args)
+
+
 				case Reduce:
+					fmt.Println("✅ REDUCE")
+
 					args = ReduceTask(newTask.ImpendingTasks, reducef, newTask.WorkerId )
+					
+					fmt.Println("{}", args)
+
 				case Sleep:
+					fmt.Println("✅ SLEEP")
+
 					time.Sleep(500 * time.Millisecond)
 					args = TaskArgs{WorkerStatus: None}
+
+					fmt.Println("{}", args)
+
 				case Exit:	
+					fmt.Println("✅  EXIT")
+
 					return 
+
 				default:
+
+					fmt.Println("✅ DEFAULT")
+
 					panic(fmt.Sprintf("unknown type: %v", newTask.WorkerStatus))
 		
 			}
@@ -107,7 +129,7 @@ func GetNextTask(completed *TaskArgs) TaskReply {
 		state of the process 
 
 */
-func MapTask(nextTask TaskReply, mapf func(string, string) []KeyValue) TaskArgs {
+func MapTask(nextTask *TaskReply, mapf func(string, string) []KeyValue) TaskArgs {
 	fmt.Println("👷 Map Worker ")
 	// Retrieve the first task from the `impending`
 	task := nextTask.ImpendingTasks[0]
