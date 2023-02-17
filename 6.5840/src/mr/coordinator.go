@@ -111,7 +111,7 @@ func (self *Coordinator) GetTask(args *TaskArgs, reply *TaskReply) error {
 	//		- If any of them have, it assigns the task to the worker and fills in 
 	//		  `reply` with the necessary information 
 	now := time.Now()
-	timeLeft := now.Add(time.Second * -10)
+	timeLeft := now.Add(-10 * time.Second )
 
 	// Check for remaining Map tasks left
 	if self.mapLeft > 0 {
@@ -119,19 +119,21 @@ func (self *Coordinator) GetTask(args *TaskArgs, reply *TaskReply) error {
 		for MapWorkerId := range self.mapTasks {
 			mapWorker := &self.mapTasks[MapWorkerId]
 			// Skip finished workers 
+
+			fmt.Println("✅✅✅MAPPING")
+
 			if mapWorker.isDone { continue }
 
 			// Check if the startTime has been running longer than 10s
 			if mapWorker.startAt.Before(timeLeft) {
-				newTask := &TaskReply{
-					WorkerId: mapWorker.id,
-					WorkerStatus: Map,
-					ImpendingTasks: []string{mapWorker.file},
-					NReduce: len(self.reduceTasks),
-				}
+				
+				reply.WorkerId = mapWorker.id
+				reply.WorkerStatus = Map
+				reply.ImpendingTasks = []string{mapWorker.file}
+				reply.NReduce =len(self.reduceTasks)
+				
 				mapWorker.startAt = now
 				
-				reply = newTask
 				return nil
 			}
 		}

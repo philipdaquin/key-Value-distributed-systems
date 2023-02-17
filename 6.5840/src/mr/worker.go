@@ -69,7 +69,7 @@ func Worker(mapf func(string, string) []KeyValue,
 				case Reduce:
 					fmt.Println("✅ REDUCE")
 
-					args = ReduceTask(newTask.ImpendingTasks, reducef, newTask.WorkerId )
+					args = ReduceTask(&newTask.ImpendingTasks, reducef, &newTask.WorkerId )
 					
 					fmt.Println("{}", args)
 
@@ -88,8 +88,8 @@ func Worker(mapf func(string, string) []KeyValue,
 
 				default:
 
-					fmt.Println("✅ DEFAULT")
-
+					// test := fmt.Sprintf("unknown type: %v", newTask.WorkerStatus )
+					// fmt.Println(test)
 					panic(fmt.Sprintf("unknown type: %v", newTask.WorkerStatus))
 		
 			}
@@ -138,8 +138,8 @@ func MapTask(nextTask *TaskReply, mapf func(string, string) []KeyValue) TaskArgs
 	// defer close 
 	// check for failures
 	file, err := os.Open(task)
-	defer file.Close()
 	if err != nil { panic(err) }
+	defer file.Close()
 
 	// Read the contents of the file into a string 
 	// Check for readErr
@@ -185,16 +185,16 @@ func MapTask(nextTask *TaskReply, mapf func(string, string) []KeyValue) TaskArgs
 
 */
 func ReduceTask(
-	file []string, 
+	file *[]string, 
 	reducef func(string, []string) string, 
-	nextTaskId int,
+	nextTaskId *int,
 	) TaskArgs {
 
 	fmt.Println("🚀 Reduce Worker ")
 
 	kv := []KeyValue{}
 
-	for _, fileName := range file {
+	for _, fileName := range *file {
 		files, err := os.Create(fileName)
 
 		if err != nil {  panic(err) }
@@ -231,7 +231,7 @@ func ReduceTask(
 		i = j - 1
 	}
 
-	var finishedTask TaskArgs  = TaskArgs{WorkerId: nextTaskId, CompletedTasks: []string{name}, WorkerStatus:  Reduce }
+	var finishedTask TaskArgs  = TaskArgs{WorkerId: *nextTaskId, CompletedTasks: []string{name}, WorkerStatus:  Reduce }
 
 	return finishedTask
 }
