@@ -4,6 +4,7 @@ members = [
     "project_2",
     "project_3",
     "project_4",
+    "project_5",
     "raft",
     "crates/labrpc",
     "crates/labcodec",
