@@ -24,6 +24,10 @@ structopt = "0.3.26"
 strum = { version = "0.24", features = ["derive"] }
 strum_macros = "0.24"
 env_logger = "0.10.0"
+futures = "0.3.26"
+tokio = "1.25.0"
+async-trait = "0.1.64"
+async-std = "1.12.0"
 
 [dev-dependencies]
 assert_cmd = "2.0.8"
@@ -52,5 +56,5 @@ lto = true
 debug =true
 
 [[bench]]
-name = "benchmarks"
+name = "benchmark"
 harness = false
