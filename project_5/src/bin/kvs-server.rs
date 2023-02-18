@@ -14,6 +14,7 @@ use strum::{EnumString, EnumVariantNames, VariantNames, Display};
 use log::LevelFilter;
 use std::env;
 use env_logger;
+
 const V: &[&str] = &["Engines::VARIANTS"];
 
 // #[derive(EnumString, EnumVariantNames, Debug, PartialEq, Eq, Clone, Copy, Display)]
@@ -29,7 +30,6 @@ enum Engines {
     kvs,
     sled
 }
-
 
 impl Engines { 
     fn variants() -> [&'static str; 2] { 
@@ -126,7 +126,7 @@ fn run_server(opt: Opt) -> Result<()> {
         Engines::kvs => {
 
             let store = KvStore::open(current_dir()?)?;
-            let server = KvsServer::new(store, pool);
+            let server = KvsServer::new(store);
             server.run(opt.addr)?;
         },
         Engines::sled => {
@@ -142,7 +142,7 @@ fn run_server(opt: Opt) -> Result<()> {
 
 
 fn server_spawn<E: KvsEngine, P: ThreadPool>(engine: E, pool: P, addr: SocketAddr) -> Result<()> {
-    let server = KvsServer::new(engine, pool);
+    let server = KvsServer::new(engine);
     server.run(addr)
 }
 

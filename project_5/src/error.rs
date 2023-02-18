@@ -36,9 +36,12 @@ pub enum CacheError {
     ServerError(String),
 
     #[error("UTF-8: {}", 0)]
-    Utf8(#[source] FromUtf8Error),
+    Utf8(#[source] FromUtf8Error)
+
+
 
 }
+
 
 impl From<io::Error> for CacheError { 
     fn from(value: io::Error) -> Self {
