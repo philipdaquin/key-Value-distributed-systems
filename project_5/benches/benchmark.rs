@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
-use project_5::engines::{kvstore::kvs::{KvStore}, sledkvstore::sledkv::SledKvsEngine};
-use project_5::engines::KvsEngine;
+use project_5::engines::{kvstore::kvs::{KvStore}, sledkvstore::sledvs::SledKvsEngine};
 use rand::prelude::*;
+use project_5::engines::KvsEngine;
 use sled;
 use tempfile::TempDir;
 
@@ -74,5 +74,5 @@ fn get_bench(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, set_bench, get_bench);
-criterion_main!(benches);
+criterion_group!(benchmark, set_bench, get_bench);
+criterion_main!(benchmark);

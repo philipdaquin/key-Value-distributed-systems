@@ -52,5 +52,5 @@ lto = true
 debug =true
 
 [[bench]]
-name = "benchmarks"
+name = "benchmark"
 harness = false
