@@ -127,7 +127,8 @@ fn run_server(opt: Opt) -> Result<()> {
 
             let store = KvStore::open(current_dir()?)?;
             let server = KvsServer::new(store);
-            server.run(opt.addr)?;
+            // server.run(opt.addr)?;
+            todo!()
         },
         Engines::sled => {
             server_spawn(
@@ -143,7 +144,8 @@ fn run_server(opt: Opt) -> Result<()> {
 
 fn server_spawn<E: KvsEngine, P: ThreadPool>(engine: E, pool: P, addr: SocketAddr) -> Result<()> {
     let server = KvsServer::new(engine);
-    server.run(addr)
+    // server.run(addr)
+    todo!()
 }
 
 

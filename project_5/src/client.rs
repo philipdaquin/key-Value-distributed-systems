@@ -20,8 +20,20 @@ pub struct KvsClient {
 }
 
 impl Client for KvsClient {
+    ///
+    /// Connect an inbound connection 
+    /// 
+    /// Errors are handled by backing off and retrying.
+    /// - Exponential backoff strategy is used 
+    /// 
+    /// 
     #[tracing::instrument(skip(addr),  level = "debug")]
     fn connect<T: ToSocketAddrs>(addr: T) -> Result<Self> {
+
+        todo!();
+        // Implement maintenance techniques for fault tolerant systems 
+
+
         let tcp = TcpStream::connect(addr)?;
         let tcp_clone = tcp.try_clone()?;
 
