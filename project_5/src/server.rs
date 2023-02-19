@@ -1,20 +1,8 @@
-use bytes::BytesMut;
-use tokio::io::{BufReader, BufWriter, AsyncWrite, AsyncRead};
-use std::io::Write;
-use std::ops::Deref;
 use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
-use futures::{StreamExt, TryStreamExt};
 use tokio::io::AsyncWriteExt;
-use serde_json::{from_reader, Deserializer, Value};
-use tokio_serde_json::ReadJson;
-use tokio_util::codec::{LengthDelimitedCodec, FramedRead, Framed, FramedWrite};
 use crate::engines::KvsEngine;
 use crate::engines::kvstore::command::Command;
 use crate::error::{Result, CacheError};
-use crate::response::ServerResponse;
-use crate::threadpool::ThreadPool;
-use tokio_serde::formats::{SymmetricalJson};
-
 use tokio::io::AsyncReadExt;
 
 pub struct KvsServer<E: KvsEngine> { 
@@ -51,7 +39,8 @@ impl<E> KvsServer<E> where E:  KvsEngine {
             self.serve_client(socket)
                 .await
                 .map_err(move |e| log::error!("Connection failed {e}"))
-                .map(|_| ());
+                .map(|_| ())
+                .expect("Server Error");
             }
         Ok(())
     }
@@ -67,7 +56,17 @@ impl<E> KvsServer<E> where E:  KvsEngine {
         
         // Create a read and write data to the stream 
         let mut buffer = Vec::new();
-        let read_buffer = reader.read(&mut buffer).await.unwrap();
+        let _ = reader.read(&mut buffer).await.unwrap();
+
+        // Process the request 
+        let response = self.process_request(&buffer[..]).await?;
+        
+        let debug_: Command = serde_json::from_slice(&response).unwrap();
+        log::info!("{:#?}", debug_);
+        
+        // Send the response back to the client 
+        writer.write_all(&response).await?;
+        writer.flush().await?;
         
         Ok(())
     }
@@ -75,23 +74,8 @@ impl<E> KvsServer<E> where E:  KvsEngine {
     async fn process_request(&self, request: &[u8]) -> Result<Box<Vec<u8>>> {
         // Deserialize request 
         let command = serde_json::from_slice(request);
-        // Call internal server response 
-
-        // let response = match command {
-        //     Command::Set(key, value) => {
-        //         self.engine.set(key.clone(), value)?;
-        //         Command::Set(key, value)
-        //     },
-        //     Command::Get(key) => {
-        //         self.engine.get(key.clone())?;
-        //         Command::Get(key)
-        //     },
-        //     Command::Remove(key) => {
-        //         self.engine.remove(key.clone())?;
-        //         Command::Remove(key)
-        //     },
-        // };
-
+        
+        // Call internal server response and serialize the response 
         let response = command
             .map_err(CacheError::from)
             .and_then(
@@ -113,8 +97,8 @@ impl<E> KvsServer<E> where E:  KvsEngine {
                 }
             )
             .and_then(|f| {
+                // Serialize Command 
                 let buff = serde_json::to_vec(&f)?;
-
                 Ok(Box::new(buff))
             });
 
