@@ -73,3 +73,15 @@ impl From<sled::Error> for CacheError {
         Self::SledError(value)
     }
 }
+
+impl From<tokio::task::JoinError> for CacheError {
+    fn from(e: tokio::task::JoinError) -> CacheError {
+        error!(
+            err = ?e,
+            was_cancelled = e.is_cancelled(),
+            did_panic = e.is_panic(),
+            "Tokio task join error occurred"
+        );
+        CacheError::UnexpectedError
+    }
+}

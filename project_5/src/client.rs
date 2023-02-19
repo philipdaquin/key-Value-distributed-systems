@@ -29,7 +29,7 @@ impl Client for KvsClient {
     /// 
     #[tracing::instrument(skip(addr),  level = "debug")]
     fn connect<T: ToSocketAddrs>(addr: T) -> Result<Self> {
-
+        let mut backoff = 1;
         todo!();
         // Implement maintenance techniques for fault tolerant systems 
 

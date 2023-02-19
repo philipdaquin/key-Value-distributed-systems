@@ -6,6 +6,7 @@ use super::ThreadPool;
 
 type MultiThreaded = Box<dyn FnOnce() + Send + 'static>;
 
+#[derive(Clone)]
 pub struct SharedQueueThreadPool { 
     pool: Sender<MultiThreaded>
 }

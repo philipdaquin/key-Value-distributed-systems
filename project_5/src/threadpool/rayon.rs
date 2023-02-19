@@ -1,21 +1,28 @@
+use std::sync::Arc;
+
 use rayon::{prelude::*, ThreadPoolBuilder, ThreadPool as RayonThread};
 
 use super::ThreadPool;
 
 
-
+#[derive(Clone)]
 pub struct RayonThreadPool {
-    pool: RayonThread
+    /// `Clone` is not implemented for RayonThread
+    /// We wrap it inside of Atomic Reference Counter instead 
+    pool: Arc<RayonThread>
 }
 
 impl ThreadPool for RayonThreadPool {
     fn new(num: u32) -> crate::error::Result<Self> where Self: Sized {
-        Ok(Self {
-            pool: ThreadPoolBuilder::new()
-                .num_threads(num as usize)
-                .build()
-                .unwrap()
-        })
+
+        let thread_pool =  ThreadPoolBuilder::new()
+            .num_threads(num as usize)
+            .build()
+            .unwrap();
+
+        let pool = Arc::new(thread_pool);
+
+        Ok(Self { pool })
     }
 
     fn spawn<F>(&self, job: F) -> crate::error::Result<()>

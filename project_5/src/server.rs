@@ -11,9 +11,7 @@ pub struct KvsServer<E: KvsEngine> {
 
 impl<E> KvsServer<E> where E:  KvsEngine { 
     pub fn new(engine: E) -> Self { 
-        Self { 
-            engine,
-        }
+        Self { engine }
     } 
 
     /// 
@@ -29,8 +27,8 @@ impl<E> KvsServer<E> where E:  KvsEngine {
     /// - Return<()>
     /// 
     /// 
-    #[tracing::instrument(skip(addr, self), level = "debug")]
-    pub async fn run<A: ToSocketAddrs>(&self, addr: A) -> Result<()> {  
+    // #[tracing::instrument(skip(addr, self), level = "debug")]
+    async fn run<A: ToSocketAddrs>(&self, addr: A) -> Result<()> {  
         // Bind the listener to the address 
         let listener = TcpListener::bind(addr).await?;
 
@@ -44,10 +42,39 @@ impl<E> KvsServer<E> where E:  KvsEngine {
             }
         Ok(())
     }
+
     ///
-    /// Process client TCP requests which comes in the form of TcpStream 
-    /// - `params` tcpStream handle incoming TCP connections  
-    /// - `throws` CacheError 
+    /// ### INTERNAL FUNCTION: 
+    /// Listen for incoming connections 
+    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `tcp` - A TCP stream between a local and a remote socket.
+    ///
+    /// # Returns
+    ///
+    /// A `Result<()>, CacheError>` containing the boxed vector of bytes
+    /// representing the response, or an `std::io::Error` if there is an issue reading or
+    /// writing to a socket, or a `serde_json::Error` if there is an issue deserializing
+    /// or serializing JSON.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use my_engine::{Engine, Command};
+    /// # use std::error::Error;
+    /// # async fn example() -> Result<(), Box<dyn Error>> {
+    /// # let engine = Engine::new(kvs);
+    /// 
+    /// let server = KvsServer::new(engine)
+    ///                        .serve_client(tcpstream)
+    ///                        .await?;
+    /// 
+    /// # Ok(())
+    /// 
+    /// # }
+    /// ```
     #[tracing::instrument(skip(tcp, self), level = "debug")]
     async fn serve_client(&self, mut tcp: TcpStream) -> Result<()> { 
         // Seperate Read and Write Handle for the connection 
@@ -71,6 +98,33 @@ impl<E> KvsServer<E> where E:  KvsEngine {
         Ok(())
     }
 
+    /// Processes a request byte slice and returns a boxed vector of bytes as output.
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - A byte slice containing the request to process.
+    ///
+    /// # Returns
+    ///
+    /// A `Result<Box<Vec<u8>>, std::io::Error>` containing the boxed vector of bytes
+    /// representing the response, or an `std::io::Error` if there is an issue reading or
+    /// writing to a socket, or a `serde_json::Error` if there is an issue deserializing
+    /// or serializing JSON.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use kvs::{Engine, Command};
+    /// # use std::error::Error;
+    /// # async fn example() -> Result<(), Box<dyn Error>> {
+    /// # let engine = Engine::new();
+    /// let request = b"{\"command\":\"get\",\"key\":\"my_key\"}";
+    /// let response = process_request(&engine, request).await?;
+    /// # Ok(())
+    /// 
+    /// # }
+    /// ```
+    #[tracing::instrument(skip(request, self), level = "debug")]
     async fn process_request(&self, request: &[u8]) -> Result<Box<Vec<u8>>> {
         // Deserialize request 
         let command = serde_json::from_slice(request);
@@ -97,13 +151,12 @@ impl<E> KvsServer<E> where E:  KvsEngine {
                 }
             )
             .and_then(|f| {
-                // Serialize Command 
+                // Serialize Command into Box<Vec<u8>>
                 let buff = serde_json::to_vec(&f)?;
                 Ok(Box::new(buff))
             });
 
             response
-        // Serialize the response into Vec<u8>
         
     }
 }

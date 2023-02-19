@@ -9,7 +9,7 @@ enum ThreadPoolMessage {
     Shutdown
 }
 
-pub trait ThreadPool { 
+pub trait ThreadPool: Clone + Send + 'static { 
 
     /// 
     /// Create a new thread pool, immediately spawning the specified numbe of threads

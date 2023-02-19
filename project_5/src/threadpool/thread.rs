@@ -1,6 +1,7 @@
 use super::{ThreadPool, ThreadPoolMessage};
 use crate::error::Result;
 
+#[derive(Clone)]
 pub struct NaiveThreadPool;
 
 impl ThreadPool for NaiveThreadPool {
