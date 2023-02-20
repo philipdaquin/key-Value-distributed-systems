@@ -59,22 +59,29 @@ impl KvStore {
     pub fn open(path: impl Into<PathBuf>) -> Result<Self> where Self: Sized {
         let path = Arc::new(path.into());
 
-        // log::info!("✅✅✅✅");
+        log::info!("✅✅✅✅");
+
         std::fs::create_dir_all(&*path)?;
-
-
         // In Memory Buffer Reader and Buffer Writer 
-        let (mut reader, 
-            mut index) = (HashMap::new(), BTreeMap::new());
+        let (
+            mut reader, 
+            mut index
+        ) = (HashMap::new(), BTreeMap::new());
+        
+        // Generation numbers 
+        let generation_list = sorted_generation(&path)?;
+        
         // Current generational value 
-        let curr_gen = *sorted_generation(&path)?.last().unwrap_or(&0) + 1;
+        let curr_gen = generation_list.last().unwrap_or(&0) + 1;
         
         // Intialise writer with the current generational value and directory
         let writer = LogWriterWithPos::<File>::new_log_file(&path, curr_gen, &mut reader)?;
-        
-        let generation_list = sorted_generation(&path)?;
 
+        // Left over space 
         let mut uncompacted_space = 0;
+
+        // Safe point for stale data 
+        let safe_point = Arc::new(AtomicU64::new(0));
 
         // Initialise all readers 
         for &version in generation_list.iter() { 
@@ -86,10 +93,9 @@ impl KvStore {
 
       
         let kv_read = KvReader {
-            reader: RwLock::new(reader),
-            index: index.clone().into(),
             directory: Arc::clone(&path), 
-            safe_point: Arc::new(AtomicU64::new(0))
+            reader: RwLock::new(HashMap::new()),
+            safe_point
         };
         let kv_writer = KvWriter {
             

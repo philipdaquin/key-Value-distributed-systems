@@ -42,7 +42,7 @@ impl<E> KvsServer<E> where E:  KvsEngine {
     /// - `random_number_seconds ` is a random number of seconds <= to 1000
     /// 
     #[tracing::instrument(skip(addr, self), level = "debug")]
-    async fn run<A: ToSocketAddrs>(&self, addr: A) -> Result<()> {  
+    pub async fn run<A: ToSocketAddrs>(&self, addr: A) -> Result<()> {  
         let mut backoff = 1;
         let max_backoff = 64;
         let mut retries = 0;

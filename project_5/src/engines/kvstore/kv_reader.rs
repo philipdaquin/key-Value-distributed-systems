@@ -34,7 +34,7 @@ pub struct KvReader {
     ///  Represents a file or directory on the file system and provides method for with paths
     pub directory: Arc<PathBuf>,
 
-    pub index : Arc<BTreeMap<String, CmdMetadata>>,
+    // pub index : Arc<BTreeMap<String, CmdMetadata>>,
     /// 
     /// Reader
     /// - Is the read handle to the current log file. 
@@ -50,7 +50,7 @@ impl Clone for KvReader {
     fn clone(&self) -> Self {
         Self { 
             directory: self.directory.clone(),
-            index: self.index.to_owned(),
+            // index: self.index.to_owned(),
             reader: RwLock::new(HashMap::new()),
             safe_point: Arc::clone(&self.safe_point)
         }

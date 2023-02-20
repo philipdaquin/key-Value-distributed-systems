@@ -76,8 +76,8 @@ fn check_current_engine() -> Result<Option<Engines>> {
 }
 
 
-
-fn main() -> Result<()> { 
+#[tokio::main]
+async fn main() -> Result<()> { 
 
     env_logger::builder()
     .filter_level(LevelFilter::Info)
@@ -100,7 +100,7 @@ fn main() -> Result<()> {
         }
     } 
 
-    if let Err(e) = run_server(opt) {
+    if let Err(e) = run_server(opt).await {
         log::error!("{}", e);
         exit(1)
     }
@@ -109,7 +109,7 @@ fn main() -> Result<()> {
 
 }
 
-fn run_server(opt: Opt) -> Result<()> {
+async fn run_server(opt: Opt) -> Result<()> {
     let current_engine = opt.engine.unwrap_or(Engines::kvs);
     
     log::info!("kvs-server {}", env!("CARGO_PKG_VERSION"));
@@ -118,34 +118,37 @@ fn run_server(opt: Opt) -> Result<()> {
     
     log::info!("Listening on {}", opt.addr);
 
-    std::fs::write(current_dir()?.join("engine"), format!("{current_engine}"))?;
+    std::fs::write(current_dir()?.join("engines"), format!("{current_engine}"))?;
 
     let pool = RayonThreadPool::new(1)?;
 
     match current_engine {
         Engines::kvs => {
+            log::info!("KVS {:?}", env::current_dir()?);
 
-            let store = KvStore::open(current_dir()?)?;
-            let server = KvsServer::new(store);
-            // server.run(opt.addr)?;
-            todo!()
+            let mut path = env::current_dir()?;
+            path.push(format!("new_test_{}", chrono::Utc::now().timestamp()));
+            server_spawn(KvStore::open(path)?, pool, opt.addr).await?;
+
+
         },
         Engines::sled => {
+            log::info!("sled");
             server_spawn(
                 SledKvsEngine::new(sled::open(current_dir()?)?),
                 pool,
                 opt.addr
-            )?;
+            ).await?;
         },
     }
     Ok(())
 }
 
 
-fn server_spawn<E: KvsEngine, P: ThreadPool>(engine: E, pool: P, addr: SocketAddr) -> Result<()> {
+async fn server_spawn<E: KvsEngine, P: ThreadPool>(engine: E, pool: P, addr: SocketAddr) -> Result<()> {
     let server = KvsServer::new(engine);
-    // server.run(addr)
-    todo!()
+    server.run(addr).await?;
+
+
+    Ok(())
 }
-
-
