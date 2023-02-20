@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use rayon::{prelude::*, ThreadPoolBuilder, ThreadPool as RayonThread};
 
+use crate::error::CacheError;
+
 use super::ThreadPool;
 
 
@@ -18,7 +20,7 @@ impl ThreadPool for RayonThreadPool {
         let thread_pool =  ThreadPoolBuilder::new()
             .num_threads(num as usize)
             .build()
-            .unwrap();
+            .map_err(|e| CacheError::ServerError(format!("{e}")))?;
 
         let pool = Arc::new(thread_pool);
 

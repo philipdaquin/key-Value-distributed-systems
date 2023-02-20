@@ -71,11 +71,11 @@ struct Opt {
     command: Command
 }
 
-
-fn main() -> Result<()> { 
+#[tokio::main]
+async fn main() -> Result<()> { 
     let opt = Opt::from_args();
 
-    if let Err(e) = match_cmds(opt) {
+    if let Err(e) = match_cmds(opt).await {
         eprintln!("{e}");
         exit(1);
     }
@@ -85,13 +85,13 @@ fn main() -> Result<()> {
 }
 
 
-fn match_cmds(opt: Opt) -> Result<()> {
+async fn match_cmds(opt: Opt) -> Result<()> {
     match opt.command {
         Command::Get { key, addr } => {
             // Connect to server 
-            let mut client = KvsClient::connect(addr)?;
+            let mut client = KvsClient::connect(addr).await?;
 
-            if let Some(val) = client.get(key)? {
+            if let Some(val) = client.get(key).await? {
                 println!("key: {{&key}}, value: {val}")
             } else { 
                 println!("Key not found")
@@ -99,12 +99,12 @@ fn match_cmds(opt: Opt) -> Result<()> {
 
         },
         Command::Set { key, value, addr } => {
-            let mut client = KvsClient::connect(addr)?;
-            client.set(key, value)?;
+            let mut client = KvsClient::connect(addr).await?;
+            client.set(key, value).await?;
         },
         Command::Remove { key, addr } => {
-            let mut client = KvsClient::connect(addr)?;
-            client.remove(key)? 
+            let mut client = KvsClient::connect(addr).await?;
+            client.remove(key).await? 
         },
     }
     Ok(())

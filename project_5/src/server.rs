@@ -1,9 +1,12 @@
+use std::time::Duration;
+
 use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use tokio::io::AsyncWriteExt;
 use crate::engines::KvsEngine;
 use crate::engines::kvstore::command::Command;
 use crate::error::{Result, CacheError};
 use tokio::io::AsyncReadExt;
+use rand::prelude::*;
 
 pub struct KvsServer<E: KvsEngine> { 
     engine: E,
@@ -15,31 +18,65 @@ impl<E> KvsServer<E> where E:  KvsEngine {
     } 
 
     /// 
-    /// Aim: Start the server enginee
+    /// Accept an inbound connection
     /// 
-    /// Input: 
+    /// ### Arguments: 
     /// - `A`: ToSocketAddrs
     /// 
-    /// Panics 
-    /// - if unable to accept any connections, return `CacheError::ServerError`
-    /// 
-    /// Returns 
-    /// - Return<()>
+    /// ### Result 
     /// 
     /// 
-    // #[tracing::instrument(skip(addr, self), level = "debug")]
+    /// ### Exponential Backoff 
+    /// Errors are handled by backing off and retrying. 
+    /// Exponential backoff is implemented, increasing the waiting time between retries up to a maximum backoff time.
+    /// After the first failure, the task waits for 1 + `random_number_seconds` seconds and retry the request...
+    /// and so, up to a `max_backoff` time.
+    /// 
+    /// Continue waiting and rettying up to some maximum number of retries, but do not increase the wait
+    /// period between retries 
+    /// 
+    /// where, 
+    /// 
+    /// - `max_backoff` is between 32 or 64 seconds
+    /// - The wait time is `min(((2^n)+random_number_milliseconds), maximum_backoff)`, 
+    ///     with `n` incremented by 1 for each iteration (request)
+    /// - `random_number_seconds ` is a random number of seconds <= to 1000
+    /// 
+    #[tracing::instrument(skip(addr, self), level = "debug")]
     async fn run<A: ToSocketAddrs>(&self, addr: A) -> Result<()> {  
+        let mut backoff = 1;
+        let mut retries = 0;
+        let max_backoff = 64;
+
         // Bind the listener to the address 
-        let listener = TcpListener::bind(addr).await?;
+        let listener = TcpListener::bind(addr).await;
 
         // Accept new incoming connection 
-        while let Ok((socket, _)) = listener.accept().await {
-            self.serve_client(socket)
-                .await
-                .map_err(move |e| log::error!("Connection failed {e}"))
-                .map(|_| ())
-                .expect("Server Error");
+        while let Ok(stream) = &listener {
+
+            match stream.accept().await {
+                Ok((socket, _)) => {
+                    self.serve_client(socket)
+                        .await
+                        .map_err(move |e| log::error!("Connection failed {e}"))
+                        .map(|_| ())
+                        .expect("Server Error");
+                },
+                Err(e) => {
+                    if backoff > max_backoff {
+                        return Err(e.into())
+                    }
+                },
             }
+        } 
+
+        // Pause execution until the back off period elapses
+        tokio::time::sleep(Duration::from_secs(backoff)).await;
+
+        let rand_num_secs = rand::thread_rng().gen_range(1, 1000);
+        backoff = u64::min(2_u64.pow(retries) + rand_num_secs, max_backoff);
+        retries += 1;
+
         Ok(())
     }
 
@@ -48,18 +85,18 @@ impl<E> KvsServer<E> where E:  KvsEngine {
     /// Listen for incoming connections 
     ///
     ///
-    /// # Arguments
+    /// ### Arguments
     ///
     /// * `tcp` - A TCP stream between a local and a remote socket.
     ///
-    /// # Returns
+    /// ### Returns
     ///
     /// A `Result<()>, CacheError>` containing the boxed vector of bytes
     /// representing the response, or an `std::io::Error` if there is an issue reading or
     /// writing to a socket, or a `serde_json::Error` if there is an issue deserializing
     /// or serializing JSON.
     ///
-    /// # Examples
+    /// ### Examples
     ///
     /// ```
     /// # use my_engine::{Engine, Command};
@@ -83,10 +120,10 @@ impl<E> KvsServer<E> where E:  KvsEngine {
         
         // Create a read and write data to the stream 
         let mut buffer = Vec::new();
-        let _ = reader.read(&mut buffer).await.unwrap();
+        let n = reader.read(&mut buffer).await.unwrap();
 
         // Process the request 
-        let response = self.process_request(&buffer[..]).await?;
+        let response = self.process_request(&buffer[..n]).await?;
         
         let debug_: Command = serde_json::from_slice(&response).unwrap();
         log::info!("{:#?}", debug_);
