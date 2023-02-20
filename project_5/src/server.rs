@@ -133,16 +133,10 @@ impl<E> KvsServer<E> where E:  KvsEngine {
         
         // Create a read and write data to the stream 
         let mut buffer = vec![0; 128];
+        log::info!("{reader:#?}");
 
-        let mut n: usize;
-        loop {
-            n = reader.read(&mut buffer).await?;
-            log::info!("{n:?} {buffer:#?}");
-            
+        let mut n = reader.read(&mut buffer).await?;
 
-            if n == 0 { break }
-
-        }
         // Process the request 
         let response = self.process_request(&buffer[..n]).await?;
         
