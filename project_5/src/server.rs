@@ -6,7 +6,6 @@ use crate::engines::KvsEngine;
 use crate::engines::kvstore::command::Command;
 use crate::error::{Result, CacheError};
 use tokio::io::AsyncReadExt;
-use rand::prelude::*;
 
 pub struct KvsServer<E: KvsEngine> { 
     engine: E,
@@ -49,26 +48,30 @@ impl<E> KvsServer<E> where E:  KvsEngine {
         let mut retries = 0;
         let max_retries = 5;
 
+        /*
+            Limited number of retries. Keep looping until we reach maximum number of retries.
+            Else, the loop ceases and we return `CacheError::ServerError`
+        */
         while retries < max_retries {
             
             // Bind the listener to the address 
             let listener = TcpListener::bind(&addr).await;
 
-            
             match listener?.accept().await { 
                 Ok((socket, _)) => {
+                    // Once client is connected, serve their requests
                     self.serve_client(socket)
                         .await
                         .map_err(move |e| log::error!("Connection failed {e}"))
                         .map(|_| ())
                         .expect("Server Error");
                 },
+                
                 Err(e) => {
+
                     if backoff > max_backoff {
                         return Err(e.into())
                     }
-                    
-                    
                     // Pause execution until the back off period elapses
                     tokio::time::sleep(Duration::from_secs(backoff)).await;
                     backoff *= 2;

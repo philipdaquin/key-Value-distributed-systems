@@ -1,16 +1,12 @@
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use futures::lock::Mutex;
-use rand::Rng;
 use serde::de::DeserializeOwned;
 // use parking_lot::Mutex;
 use tokio::{net::{ToSocketAddrs, TcpStream, tcp::{OwnedReadHalf, OwnedWriteHalf}}, 
-    io::{BufReader, BufWriter, AsyncWrite, AsyncRead, ReadBuf, ReadHalf, WriteHalf, AsyncWriteExt}
+    io::{BufReader, BufWriter, AsyncWriteExt}
 
 };
-use serde_json::{Deserializer, de::IoRead};
-use tokio_serde::SymmetricallyFramed;
 use crate::{engines::kvstore::{command::Command, kvs::Cache}, response::ServerResponse, error::CacheError};
-use tokio::io::AsyncBufReadExt;
 use crate::error::Result;
 use async_trait::async_trait;
 use tokio::io::AsyncReadExt;
@@ -50,13 +46,15 @@ impl Client for KvsClient {
         let max_retries = 5;
 
         /*
-            Limited number of retries
+            Limited number of retries. Keep looping until we reach maximum number of retries.
+            Else, the loop ceases and we return `CacheError::ServerError`
         */
         while retries < max_retries { 
             match TcpStream::connect(addr).await {
                 Ok(stream) => { 
                     let (read, write) = stream.into_split();
                     
+                    // Initialise Readers and writers 
                     let reader = Mutex::new(BufReader::new(read));
                     let writer = Mutex::new(BufWriter::new(write));
                 
