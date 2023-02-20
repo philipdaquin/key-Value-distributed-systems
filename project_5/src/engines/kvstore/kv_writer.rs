@@ -25,7 +25,7 @@ pub trait Writer {
     fn new_log_file(&mut self, gen: u64) -> Result<LogWriterWithPos<File>>;
 
 }
-
+#[derive(Debug)]
 pub struct KvWriter { 
 
     /// `PathBuf`
@@ -192,7 +192,7 @@ impl Writer for KvWriter {
         }
     }
     fn new_log_file(&mut self, gen: u64) -> Result<LogWriterWithPos<File>> {
-        LogWriterWithPos::<File>::new_log_file(&self.directory, gen, &mut self.reader.reader.write())
+        LogWriterWithPos::<File>::new_log_file(&self.directory, gen)
     }
     
 

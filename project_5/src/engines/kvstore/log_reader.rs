@@ -10,6 +10,7 @@ use crate::error::Result;
 /// In addition, by using a technique like hinting, LFS can quickly locate a specific key in the 
 /// buffer instead of scanning the entire log, which improves read performance
 /// 
+#[derive(Debug)]
 pub struct LogReaderWithPos<R> where R: Read + Seek { 
     pub reader: BufReader<R>,
     pub index: u64

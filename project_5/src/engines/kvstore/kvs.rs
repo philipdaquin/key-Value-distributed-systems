@@ -32,7 +32,7 @@ pub trait Cache  {
     fn version();
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct KvStore { 
     /// `PathBuf`
     ///  Represents a file or directory on the file system and provides method for with paths
@@ -56,10 +56,11 @@ impl KvStore {
     /// Open a new or existing KvStore datastore for read only access
     /// The directory and all files in it must be readable by this process
     ///  
+    #[tracing::instrument(fields(path), level = "debug")]
     pub fn open(path: impl Into<PathBuf>) -> Result<Self> where Self: Sized {
         let path = Arc::new(path.into());
 
-        log::info!("✅✅✅✅");
+        log::info!("START");
 
         std::fs::create_dir_all(&*path)?;
         // In Memory Buffer Reader and Buffer Writer 
@@ -74,9 +75,6 @@ impl KvStore {
         // Current generational value 
         let curr_gen = generation_list.last().unwrap_or(&0) + 1;
         
-        // Intialise writer with the current generational value and directory
-        let writer = LogWriterWithPos::<File>::new_log_file(&path, curr_gen, &mut reader)?;
-
         // Left over space 
         let mut uncompacted_space = 0;
 
@@ -85,13 +83,16 @@ impl KvStore {
 
         // Initialise all readers 
         for &version in generation_list.iter() { 
-            let mut log_reader = LogReaderWithPos::new(File::open(log_path(&path, version))?)?;
+            let log_path = File::open(log_path(&path, version))?;
+            let mut log_reader = LogReaderWithPos::new(log_path)?;
             
             uncompacted_space += load_log_file(version, &mut log_reader, &mut index)?;
             reader.insert(version, log_reader);
         }
 
-      
+        // Intialise writer with the current generational value and directory
+        let writer = LogWriterWithPos::<File>::new_log_file(&path, curr_gen).expect("AOIHDAKSJDASHDIHASDIHASHAPOSID");
+
         let kv_read = KvReader {
             directory: Arc::clone(&path), 
             reader: RwLock::new(HashMap::new()),
@@ -108,6 +109,7 @@ impl KvStore {
             
         };
 
+        log::info!("END");
 
         Ok(Self { 
             directory: Arc::new(path.to_path_buf()), 
@@ -136,6 +138,7 @@ impl KvsEngine for KvStore {
     /// 
     /// 5. The result of the data set is returned to the client
     /// 
+    #[tracing::instrument(fields(key), level = "debug")]
     fn get(&self, key: String) -> Result<Option<String>> {
         
         // Check if the metadata is in memory 
@@ -172,6 +175,7 @@ impl KvsEngine for KvStore {
     /// 
     /// 4. Set CommandPos in BTreeMap
     /// 
+    #[tracing::instrument(fields(key, value), level = "debug")]
     fn set(&self, key: String, value: String) -> Result<()> {
         self.writer.lock().set(key, value)
 
@@ -188,6 +192,7 @@ impl KvsEngine for KvStore {
     /// 
     /// 3. WE update our original in memory cache 
     /// 
+    #[tracing::instrument(fields(key), level = "debug")]
     fn remove(&self, key: String) -> Result<()> {
         self.writer.lock().remove(key)
     }

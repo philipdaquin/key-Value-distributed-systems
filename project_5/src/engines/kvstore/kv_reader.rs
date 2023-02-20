@@ -28,6 +28,7 @@ pub trait Reader {
 /// 
 /// User must read concurrently through multiple KvStore's 
 /// in different threads 
+#[derive(Debug)]
 pub struct KvReader { 
 
     /// `PathBuf`

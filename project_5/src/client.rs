@@ -50,57 +50,59 @@ impl Client for KvsClient {
             Limited number of retries. Keep looping until we reach maximum number of retries.
             Else, the loop ceases and we return `CacheError::ServerError`
         */
-        // while retries < max_retries { 
-        //     match TcpStream::connect(addr).await {
-        //         Ok(stream) => { 
-        //             let (read, write) = stream.into_split();
+        while retries < max_retries { 
+            match TcpStream::connect(addr).await {
+                Ok(stream) => { 
+                    let (read, write) = stream.into_split();
                     
-        //             // Initialise Readers and writers 
-        //             let reader = Mutex::new(BufReader::new(read));
-        //             let writer = Mutex::new(BufWriter::new(write));
+                    // Initialise Readers and writers 
+                    let reader = Mutex::new(BufReader::new(read));
+                    let writer = Mutex::new(BufWriter::new(write));
                 
-        //             return Ok(Self { 
-        //                 reader: Arc::new(reader), 
-        //                 writer: Arc::new(writer)
-        //             })
+                    return Ok(Self { 
+                        reader: Arc::new(reader), 
+                        writer: Arc::new(writer)
+                    })
                     
-        //         },
-        //         Err(e) => { 
-        //             // Pause execution until the back off period elapses
-        //             if backoff > max_backoff { 
-        //                 return Err(e.into())
-        //             }
+                },
+                Err(e) => { 
+                    // Pause execution until the back off period elapses
+                    if backoff > max_backoff { 
+                        return Err(e.into())
+                    }
 
-        //             tokio::time::sleep(Duration::from_secs(backoff)).await;
-        //             backoff *= 2;
-        //             retries += 1;
-        //         }
-        //     }
-        // }
+                    tokio::time::sleep(Duration::from_secs(backoff)).await;
+                    backoff *= 2;
+                    retries += 1;
+                }
+            }
+        }
 
-        // Err(CacheError::ServerError("Connection failed after max retries ".to_string()))
-        let (read, write) = TcpStream::connect(addr).await?.into_split();
-
-        let reader = Mutex::new(BufReader::new(read));
-        let writer = Mutex::new(BufWriter::new(write));
-       
-        return Ok(Self { 
-                            reader: Arc::new(reader), 
-                            writer: Arc::new(writer)
-                        })
+        Err(CacheError::ServerError("Connection failed after max retries ".to_string()))
+        // let (read, write) = TcpStream::connect(addr).await?.into_split();
+        // let reader = Mutex::new(BufReader::new(read));
+        // let writer = Mutex::new(BufWriter::new(write));
+        // return Ok(Self { 
+        //                     reader: Arc::new(reader), 
+        //                     writer: Arc::new(writer)
+        //                 })
     }
     
     
     
-    #[tracing::instrument(skip(self),  level = "debug")]
+    #[tracing::instrument(fields(self, key),  level = "debug")]
     async fn get(&mut self, key: String) -> Result<Option<String>> {
+        log::info!("GETTING EKYca");
+
         self.process_requests(Command::Get(key))
             .await?
             .ok()
     }
 
-    #[tracing::instrument(skip(self),  level = "debug")]
+    #[tracing::instrument(fields(self, key, value),  level = "debug")]
     async fn set(&mut self, key: String, value: String) -> Result<()> {
+                log::info!("SETTING KEY");
+
         let _: Result<Option<String>> = self.process_requests(Command::Set(key, value))
             .await?.ok();
         Ok(())
@@ -108,6 +110,8 @@ impl Client for KvsClient {
 
     #[tracing::instrument(skip(self),  level = "debug")]
     async fn remove(&mut self, key: String) -> Result<()> {
+        log::info!("REMOVING KEY ");
+
         let _: Result<Option<String>> = Ok(self.process_requests(Command::Remove(key)).await?.ok()?);
 
         Ok(())
@@ -115,7 +119,7 @@ impl Client for KvsClient {
 
     ///
     /// Process the user request and return server reponse 
-    #[tracing::instrument(fields(repository = "command"), level = "debug")]
+    #[tracing::instrument(fields(command), level = "debug")]
     async fn process_requests<T: DeserializeOwned>(&mut self, command: Command) -> Result<ServerResponse<T>> { 
         // Serialize the request into a byte buffer 
         let request_data = serde_json::to_vec(&command)?;

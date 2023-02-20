@@ -1,5 +1,6 @@
 use core::num;
 use std::env::current_dir;
+use std::net::{IpAddr, Ipv4Addr};
 use std::process::exit;
 use std::{net::SocketAddr, str::FromStr};
 use project_5::engines::KvsEngine;
@@ -72,6 +73,8 @@ struct Opt {
 }
 
 fn check_current_engine() -> Result<Option<Engines>> { 
+
+    log::info!("Checking Engine");
     let engine = current_dir()?.join("engine");
 
     if !engine.exists() { 
@@ -79,7 +82,11 @@ fn check_current_engine() -> Result<Option<Engines>> {
     } 
 
     match std::fs::read_to_string(engine)?.parse() { 
-        Ok(engine) => Ok(Some(engine)),
+        Ok(engine) => {
+    log::info!("{engine:?}");
+            
+            
+            Ok(Some(engine))},
         Err(e) => { 
             
             log::warn!("The content of file is invalid {e}");
@@ -87,6 +94,7 @@ fn check_current_engine() -> Result<Option<Engines>> {
             Ok(None)
         } 
     }
+
 }
 
 
@@ -98,7 +106,8 @@ async fn main() -> Result<()> {
         .init();
 
     let mut opt = Opt::from_args();
-    let res = check_current_engine().and_then(|curr_engine| Ok(async move {
+
+    if let Ok(curr_engine) = check_current_engine() {
         if opt.engine.is_none() {
             opt.engine = curr_engine;
         }
@@ -106,9 +115,9 @@ async fn main() -> Result<()> {
             log::error!("Wrong engine!");
             exit(1);
         }
-        run_server(opt).await
-    }));
-    if let Err(e) = res {
+    }
+        
+    if let Err(e) = run_server(opt).await {
         log::error!("{}", e);
         exit(1)
     }
@@ -121,7 +130,7 @@ async fn run_server(opt: Opt) -> Result<()> {
     // let current_engine = opt.engine.unwrap_or(Engines::kvs);
     let current_engine = Engines::kvs;
     
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+    // env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     
     log::info!("kvs-server {}", env!("CARGO_PKG_VERSION"));
     
@@ -129,7 +138,8 @@ async fn run_server(opt: Opt) -> Result<()> {
     
     log::info!("Listening on {}", opt.addr);
 
-    std::fs::write(current_dir()?.join("engines"), format!("{current_engine}"))?;
+    let s = current_dir()?.join("engine");
+    std::fs::write(s, format!("{current_engine}"))?;
 
     let pool = RayonThreadPool::new(1)?;
 
@@ -155,11 +165,12 @@ async fn run_server(opt: Opt) -> Result<()> {
     Ok(())
 }
 
-
+#[tracing::instrument(fields(engine, pool, addr), level = "debug")]
 async fn server_spawn<E: KvsEngine, P: ThreadPool>(engine: E, pool: P, addr: SocketAddr) -> Result<()> {
+
+    log::info!("SPAWNING SERVER");
     let server = KvsServer::new(engine);
-    server.run(addr).await?;
-
-
-    Ok(())
+    
+    // let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 4000);
+    server.run(addr).await
 }

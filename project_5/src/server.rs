@@ -56,12 +56,16 @@ impl<E> KvsServer<E> where E:  KvsEngine {
         */
         
         while retries < max_retries {
-            
-            // Bind the listener to the address 
-            let listener = TcpListener::bind(&addr).await;
+            log::info!("RETRIES: {retries}, BACKOFF: {backoff}");
 
-            match listener?.accept().await { 
+            // Bind the listener to the address 
+            let listener = TcpListener::bind(&addr).await?;
+            log::info!("{:?}", listener.local_addr()?);
+
+            match listener.accept().await { 
                 Ok((socket, _)) => {
+                    log::info!("STARTING TO SERVER CLIENT REQUEST");
+
                     // Once client is connected, serve their requests
                     self.serve_client(socket)
                         .await
@@ -71,6 +75,7 @@ impl<E> KvsServer<E> where E:  KvsEngine {
                 },
                 
                 Err(e) => {
+                    log::info!("ERROR RECEIVED");
 
                     if backoff > max_backoff {
                         return Err(e.into())
@@ -118,16 +123,26 @@ impl<E> KvsServer<E> where E:  KvsEngine {
     /// 
     /// # }
     /// ```
-    #[tracing::instrument(skip(tcp, self), level = "debug")]
+    #[tracing::instrument(fields(tcp, self), level = "debug")]
     async fn serve_client(&self, mut tcp: TcpStream) -> Result<()> { 
+        log::info!("🧑‍🍳 Serving the Client");
+
         // Seperate Read and Write Handle for the connection 
         // `Split I/O` resources 
         let (mut reader, mut writer) = tcp.split();
         
         // Create a read and write data to the stream 
-        let mut buffer = Vec::new();
-        let n = reader.read(&mut buffer).await.unwrap();
+        let mut buffer = vec![0; 128];
 
+        let mut n: usize;
+        loop {
+            n = reader.read(&mut buffer).await?;
+            log::info!("{n:?} {buffer:#?}");
+            
+
+            if n == 0 { break }
+
+        }
         // Process the request 
         let response = self.process_request(&buffer[..n]).await?;
         
@@ -169,6 +184,8 @@ impl<E> KvsServer<E> where E:  KvsEngine {
     /// ```
     #[tracing::instrument(skip(request, self), level = "debug")]
     async fn process_request(&self, request: &[u8]) -> Result<Box<Vec<u8>>> {
+        log::info!("🧑 Processing the client's requuests");
+
         // Deserialize request 
         let command = serde_json::from_slice(request);
         

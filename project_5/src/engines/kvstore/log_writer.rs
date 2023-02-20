@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf}, fs::{OpenOptions, File}, 
     collections::{HashMap, BTreeMap}
 };
-use crate::{error::{Result, CacheError} };
+use crate::{error::{Result, CacheError}, engines::log_path };
 use crate::engines::kvstore::log_reader::LogReaderWithPos;
 
 
@@ -23,6 +23,7 @@ use crate::engines::kvstore::log_reader::LogReaderWithPos;
 /// `index`
 /// Keeps track of current position in the file 
 /// 
+#[derive(Debug)]
 pub struct LogWriterWithPos<W> where W: Write + Seek { 
     pub writer: BufWriter<W>, 
     pub index: u64
@@ -60,17 +61,20 @@ impl<W> LogWriterWithPos<W> where W: Write + Seek {
             index
         })
     }
-
-    pub fn new_log_file(path: &Path, gen: u64, readers: &mut HashMap<u64, LogReaderWithPos<File>>) -> Result<LogWriterWithPos<File>> { 
+    #[tracing::instrument(fields(path, gen), level = "debug")]
+    pub fn new_log_file(path: &Path, gen: u64) -> Result<LogWriterWithPos<File>> { 
+        log::info!("CREATING A NEW LOG FILE");
+        
+        let log_path = log_path(&path, gen);
+        
         let file = OpenOptions::new()
             .append(true)
             .create(true)
             .write(true)
-            .open(path)?;
+            .open(&log_path)?;
         let log_writer = LogWriterWithPos::new(file)?;  
 
-
-        readers.insert(gen, LogReaderWithPos::new(File::open(&path)?)?);
+        // readers.insert(gen, LogReaderWithPos::new(File::open(&path)?)?);
 
         Ok(log_writer)
     }

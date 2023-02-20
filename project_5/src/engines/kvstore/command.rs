@@ -14,7 +14,7 @@ pub enum Command  {
     Remove(String)
 }
 /// Metadata of Command 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CmdMetadata { 
     pub generation_num: u64,
     pub position: u64, 
