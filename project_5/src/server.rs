@@ -45,16 +45,17 @@ impl<E> KvsServer<E> where E:  KvsEngine {
     #[tracing::instrument(skip(addr, self), level = "debug")]
     async fn run<A: ToSocketAddrs>(&self, addr: A) -> Result<()> {  
         let mut backoff = 1;
-        let mut retries = 0;
         let max_backoff = 64;
+        let mut retries = 0;
+        let max_retries = 5;
 
-        // Bind the listener to the address 
-        let listener = TcpListener::bind(addr).await;
+        while retries < max_retries {
+            
+            // Bind the listener to the address 
+            let listener = TcpListener::bind(&addr).await;
 
-        // Accept new incoming connection 
-        while let Ok(stream) = &listener {
-
-            match stream.accept().await {
+            
+            match listener?.accept().await { 
                 Ok((socket, _)) => {
                     self.serve_client(socket)
                         .await
@@ -66,18 +67,17 @@ impl<E> KvsServer<E> where E:  KvsEngine {
                     if backoff > max_backoff {
                         return Err(e.into())
                     }
-                },
+                    
+                    
+                    // Pause execution until the back off period elapses
+                    tokio::time::sleep(Duration::from_secs(backoff)).await;
+                    backoff *= 2;
+                    retries += 1;
+                }
             }
-        } 
+        }
 
-        // Pause execution until the back off period elapses
-        tokio::time::sleep(Duration::from_secs(backoff)).await;
-
-        let rand_num_secs = rand::thread_rng().gen_range(1, 1000);
-        backoff = u64::min(2_u64.pow(retries) + rand_num_secs, max_backoff);
-        retries += 1;
-
-        Ok(())
+        Err(CacheError::ServerError("Connection failed after max retries ".to_string()))
     }
 
     ///

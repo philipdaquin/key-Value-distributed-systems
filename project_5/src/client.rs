@@ -1,5 +1,6 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 use futures::lock::Mutex;
+use rand::Rng;
 use serde::de::DeserializeOwned;
 // use parking_lot::Mutex;
 use tokio::{net::{ToSocketAddrs, TcpStream, tcp::{OwnedReadHalf, OwnedWriteHalf}}, 
@@ -25,8 +26,8 @@ pub trait Client {
 
 #[derive(Debug)]
 pub struct KvsClient { 
-    reader: Mutex<BufReader<OwnedReadHalf>>,
-    writer: Mutex<BufWriter<OwnedWriteHalf>>
+    reader: Arc<Mutex<BufReader<OwnedReadHalf>>>,
+    writer: Arc<Mutex<BufWriter<OwnedWriteHalf>>>
 }
 
 #[async_trait]
@@ -34,24 +35,51 @@ impl Client for KvsClient {
     /// 
     /// Create a TCP connection to the server  
     /// 
-    /// Errors are handled by backing off and retrying.
-    /// - Exponential backoff strategy is used 
     /// 
+    /// 
+    /// Fault tolerant solutions
+    /// Errors are handled by backing off and retrying. Exponential backoff strategy is used
+    /// - max retries = 5
+    /// - max backoff time = 54
     /// 
     #[tracing::instrument(skip(addr),  level = "debug")]
     async fn connect(addr: SocketAddr) -> Result<Self> {
-        // let mut backoff = 1;
+        let mut backoff = 1;
+        let max_backoff = 64;
+        let mut retries = 0;
+        let max_retries = 5;
 
-        // Implement maintenance techniques for fault tolerant systems 
-        let (read, write) = TcpStream::connect(addr).await?.into_split();
+        /*
+            Limited number of retries
+        */
+        while retries < max_retries { 
+            match TcpStream::connect(addr).await {
+                Ok(stream) => { 
+                    let (read, write) = stream.into_split();
+                    
+                    let reader = Mutex::new(BufReader::new(read));
+                    let writer = Mutex::new(BufWriter::new(write));
+                
+                    return Ok(Self { 
+                        reader: Arc::new(reader), 
+                        writer: Arc::new(writer)
+                    })
+                    
+                },
+                Err(e) => { 
+                    // Pause execution until the back off period elapses
+                    if backoff > max_backoff { 
+                        return Err(e.into())
+                    }
 
-        let reader = Mutex::new(BufReader::new(read));
-        let writer = Mutex::new(BufWriter::new(write));
-       
-        Ok(Self { 
-            reader, 
-            writer
-        })
+                    tokio::time::sleep(Duration::from_secs(backoff)).await;
+                    backoff *= 2;
+                    retries += 1;
+                }
+            }
+        }
+
+        Err(CacheError::ServerError("Connection failed after max retries ".to_string()))
     }
     
     #[tracing::instrument(skip(self),  level = "debug")]
@@ -63,14 +91,14 @@ impl Client for KvsClient {
 
     #[tracing::instrument(skip(self),  level = "debug")]
     async fn set(&mut self, key: String, value: String) -> Result<()> {
-        let response: Result<Option<String>> = self.process_requests(Command::Set(key, value))
+        let _: Result<Option<String>> = self.process_requests(Command::Set(key, value))
             .await?.ok();
         Ok(())
     }
 
     #[tracing::instrument(skip(self),  level = "debug")]
     async fn remove(&mut self, key: String) -> Result<()> {
-        let response: Result<Option<String>> = Ok(self.process_requests(Command::Remove(key)).await?.ok()?);
+        let _: Result<Option<String>> = Ok(self.process_requests(Command::Remove(key)).await?.ok()?);
 
         Ok(())
     }
