@@ -38,47 +38,59 @@ impl Client for KvsClient {
     /// - max retries = 5
     /// - max backoff time = 54
     /// 
-    #[tracing::instrument(skip(addr),  level = "debug")]
+    #[tracing::instrument(field(addr),  level = "debug")]
     async fn connect(addr: SocketAddr) -> Result<Self> {
         let mut backoff = 1;
         let max_backoff = 64;
         let mut retries = 0;
         let max_retries = 5;
+        log::info!("🚀 Client connecting to Server");
 
         /*
             Limited number of retries. Keep looping until we reach maximum number of retries.
             Else, the loop ceases and we return `CacheError::ServerError`
         */
-        while retries < max_retries { 
-            match TcpStream::connect(addr).await {
-                Ok(stream) => { 
-                    let (read, write) = stream.into_split();
+        // while retries < max_retries { 
+        //     match TcpStream::connect(addr).await {
+        //         Ok(stream) => { 
+        //             let (read, write) = stream.into_split();
                     
-                    // Initialise Readers and writers 
-                    let reader = Mutex::new(BufReader::new(read));
-                    let writer = Mutex::new(BufWriter::new(write));
+        //             // Initialise Readers and writers 
+        //             let reader = Mutex::new(BufReader::new(read));
+        //             let writer = Mutex::new(BufWriter::new(write));
                 
-                    return Ok(Self { 
-                        reader: Arc::new(reader), 
-                        writer: Arc::new(writer)
-                    })
+        //             return Ok(Self { 
+        //                 reader: Arc::new(reader), 
+        //                 writer: Arc::new(writer)
+        //             })
                     
-                },
-                Err(e) => { 
-                    // Pause execution until the back off period elapses
-                    if backoff > max_backoff { 
-                        return Err(e.into())
-                    }
+        //         },
+        //         Err(e) => { 
+        //             // Pause execution until the back off period elapses
+        //             if backoff > max_backoff { 
+        //                 return Err(e.into())
+        //             }
 
-                    tokio::time::sleep(Duration::from_secs(backoff)).await;
-                    backoff *= 2;
-                    retries += 1;
-                }
-            }
-        }
+        //             tokio::time::sleep(Duration::from_secs(backoff)).await;
+        //             backoff *= 2;
+        //             retries += 1;
+        //         }
+        //     }
+        // }
 
-        Err(CacheError::ServerError("Connection failed after max retries ".to_string()))
+        // Err(CacheError::ServerError("Connection failed after max retries ".to_string()))
+        let (read, write) = TcpStream::connect(addr).await?.into_split();
+
+        let reader = Mutex::new(BufReader::new(read));
+        let writer = Mutex::new(BufWriter::new(write));
+       
+        return Ok(Self { 
+                            reader: Arc::new(reader), 
+                            writer: Arc::new(writer)
+                        })
     }
+    
+    
     
     #[tracing::instrument(skip(self),  level = "debug")]
     async fn get(&mut self, key: String) -> Result<Option<String>> {

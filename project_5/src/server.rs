@@ -41,17 +41,20 @@ impl<E> KvsServer<E> where E:  KvsEngine {
     ///     with `n` incremented by 1 for each iteration (request)
     /// - `random_number_seconds ` is a random number of seconds <= to 1000
     /// 
-    #[tracing::instrument(skip(addr, self), level = "debug")]
+    #[tracing::instrument(fields(addr, self), level = "debug")]
     pub async fn run<A: ToSocketAddrs>(&self, addr: A) -> Result<()> {  
         let mut backoff = 1;
         let max_backoff = 64;
         let mut retries = 0;
         let max_retries = 5;
 
+        log::info!("🚀 Connecting to Server");
+
         /*
             Limited number of retries. Keep looping until we reach maximum number of retries.
             Else, the loop ceases and we return `CacheError::ServerError`
         */
+        
         while retries < max_retries {
             
             // Bind the listener to the address 

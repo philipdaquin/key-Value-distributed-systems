@@ -73,6 +73,9 @@ struct Opt {
 
 #[tokio::main]
 async fn main() -> Result<()> { 
+
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+
     let opt = Opt::from_args();
 
     if let Err(e) = match_cmds(opt).await {
@@ -88,9 +91,11 @@ async fn main() -> Result<()> {
 async fn match_cmds(opt: Opt) -> Result<()> {
     match opt.command {
         Command::Get { key, addr } => {
+            log::info!("get!");
+
             // Connect to server 
             let mut client = KvsClient::connect(addr).await?;
-
+            log::info!("Connected!");
             if let Some(val) = client.get(key).await? {
                 println!("key: {{&key}}, value: {val}")
             } else { 
@@ -99,10 +104,14 @@ async fn match_cmds(opt: Opt) -> Result<()> {
 
         },
         Command::Set { key, value, addr } => {
+            log::info!("setting!");
+            
             let mut client = KvsClient::connect(addr).await?;
             client.set(key, value).await?;
         },
         Command::Remove { key, addr } => {
+            log::info!("remove!");
+            
             let mut client = KvsClient::connect(addr).await?;
             client.remove(key).await? 
         },
