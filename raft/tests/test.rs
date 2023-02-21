@@ -12,7 +12,7 @@ use futures::future;
 use rand::{rngs::ThreadRng, Rng};
 
 use raft::raft::config::{Config, Entry, Storage, SNAPSHOT_INTERVAL};
-use raft::raft::node::Node;
+use raft::raft::Node;
 
 /// The tester generously allows solutions to complete elections in one second
 /// (much more than the paper's range of timeouts).
@@ -43,7 +43,7 @@ fn test_initial_election_2a() {
     thread::sleep(2 * RAFT_ELECTION_TIMEOUT);
     let term2 = cfg.check_terms();
     if term1 != term2 {
-        warn!("warning: term changed even though there were no failures")
+        log::warn!("warning: term changed even though there were no failures")
     }
 
     // there should still be a leader.
@@ -245,7 +245,7 @@ fn test_concurrent_starts_2b() {
             .start(&Entry { x: 1 })
         {
             Err(err) => {
-                warn!("start leader {} meet error {:?}", leader, err);
+                log::warn!("start leader {} meet error {:?}", leader, err);
                 continue;
             }
             Ok((_, term)) => term,
@@ -259,7 +259,7 @@ fn test_concurrent_starts_2b() {
             cfg.net.spawn(future::lazy(move |_| {
                 let idx = match node.start(&Entry { x: 100 + ii }) {
                     Err(err) => {
-                        warn!("start leader {} meet error {:?}", leader, err);
+                        log::warn!("start leader {} meet error {:?}", leader, err);
                         None
                     }
                     Ok((idx, term1)) => {
@@ -490,7 +490,7 @@ fn test_count_2b() {
         {
             Ok((starti, term)) => (starti, term),
             Err(err) => {
-                warn!("start leader {} meet error {:?}", leader, err);
+                log::warn!("start leader {} meet error {:?}", leader, err);
                 continue;
             }
         };
@@ -515,7 +515,7 @@ fn test_count_2b() {
                     }
                 }
                 Err(err) => {
-                    warn!("start leader {} meet error {:?}", leader, err);
+                    log::warn!("start leader {} meet error {:?}", leader, err);
                     continue 'outer;
                 }
             }

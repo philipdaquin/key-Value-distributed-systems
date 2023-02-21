@@ -29,7 +29,7 @@ pub enum ApplyMsg {
         index: u64
     },
     Snapshot {
-        data: Vec<u8>,
+        data: Vec<u8>, 
         term: u64,
         index: u64
     }
@@ -201,34 +201,34 @@ pub struct Node {
 impl Node { 
 
     /// Create a new Raft service  
-    fn new(raft: Raft) -> Self { 
+    pub fn new(raft: Raft) -> Self { 
         todo!()
     }
 
 
-    fn term(&self) -> u64 {
+    pub fn term(&self) -> u64 {
         todo!()
     }
-    fn is_leader(&self) -> bool {
+    pub fn is_leader(&self) -> bool {
         todo!()
     }
-    fn get_state(&self) -> State {
+    pub fn get_state(&self) -> State {
         todo!()
     }
 
-    fn send_request_vote(&self, server: usize, args: RequestVoteArgs) -> Receiver<Result<RequestVoteReply>> {
+    pub fn send_request_vote(&self, server: usize, args: RequestVoteArgs) -> Receiver<Result<RequestVoteReply>> {
         todo!()
     }  
 
-    fn kill(&self) {
+    pub fn kill(&self) {
         todo!()
     }
 
-    fn start<M: labcodec::Message>(&self, command: &M) -> Result<(u64, u64)> {
+    pub fn start<M: labcodec::Message>(&self, command: &M) -> Result<(u64, u64)> {
         todo!()
     }
 
-    fn cond_install_snapshot(&self, included_term: u64, last_index: u64, snapshot: &[u8]) -> bool { 
+    pub fn cond_install_snapshot(&self, included_term: u64, last_index: u64, snapshot: &[u8]) -> bool { 
         // 2D
         todo!()
     }
