@@ -12,6 +12,8 @@ use labcodec;
 use crate::proto::raftpb::*;
 use crate::raft;
 use crate::raft::persister::*;
+use crate::proto::raftpb::*;
+
 
 pub const SNAPSHOT_INTERVAL: u64 = 10;
 

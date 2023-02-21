@@ -10,6 +10,19 @@ pub mod config;
 pub mod errors;
 pub mod persister;
 
+use self::errors::*;
+use self::persister::*;
+use crate::proto::raftpb::*;
+
+/// as each Raft peer becomes aware that successive log entries are
+/// committed, the peer should send an ApplyMsg to the service (or
+/// tester) on the same server, via the applyCh passed to Make(). set
+/// CommandValid to true to indicate that the ApplyMsg contains a newly
+/// committed log entry.
+///
+/// in part 2D you'll want to send other kinds of messages (e.g.,
+/// snapshots) on the applyCh, but set CommandValid to false for these
+/// other uses.
 pub enum ApplyMsg { 
     Command {
         data: Vec<u8>,
@@ -40,6 +53,7 @@ pub struct Raft {
 }
 
 // The state of the RAFT peers
+#[derive(Clone, Debug, Default)]
 pub struct State { 
     term: u64, 
     is_leader: bool
@@ -54,6 +68,15 @@ impl State {
             is_leader: self.is_leader
         }
     } 
+
+    fn term(&self) -> u64 { 
+        self.term
+    }
+
+    fn is_leader(&self) -> bool { 
+        self.is_leader
+    }
+
 }
 
 impl Raft { 
@@ -67,8 +90,8 @@ impl Raft {
     /// This method must return quickly.
     pub fn new(
         peers: Vec<RaftClient>,
-        persister: Box<dyn Persister>,
         me: usize, 
+        persister: Box<dyn Persister>,
         apply_ch: UnboundedSender<ApplyMsg>
     ) -> Self { 
         todo!()
@@ -205,15 +228,27 @@ impl Node {
         todo!()
     }
 
-    fn cond_install_snapshot(&mut self, included_term: u64, last_index: u64, snapshot: &[u8]) -> bool { 
+    fn cond_install_snapshot(&self, included_term: u64, last_index: u64, snapshot: &[u8]) -> bool { 
         // 2D
         todo!()
     }
-
+    
+    /// the service says it has created a snapshot that has
+    /// all info up to and including index. this means the
+    /// service no longer needs the log through (and including)
+    /// that index. Raft should now trim its log as much as possible.
     fn snapshot(&self, index: u64, snapshot: &[u8]) {
         todo!()
     }
+}
 
-
-
+#[async_trait::async_trait]
+impl RaftService for Node {
+    // example RequestVote RPC handler.
+    //
+    // CAVEATS: Please avoid locking or sleeping here, it may jam the network.
+    async fn request_vote(&self, args: RequestVoteArgs) -> labrpc::Result<RequestVoteReply> {
+        // Your code here (2A, 2B).
+        todo!()
+    }
 }

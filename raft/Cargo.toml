@@ -11,8 +11,8 @@ async-trait = "0.1.64"
 tracing = "0.1.37"
 tracing-log = "0.1.3"
 tracing-subscriber = { version = "0.3.16", features = ["registry", "env-filter"] }
-prost = "0.11.6"
-prost-derive = "0.6"
+prost = "0.6.1"
+prost-derive = "0.6.1"
 labcodec = { path = "../crates/labcodec" }
 labrpc = { path = "../crates/labrpc" }
 thiserror = "1.0.38"
@@ -55,4 +55,4 @@ name = "my_bench"
 harness = false
 
 [build-dependencies]
-prost-build = "0.6"
+prost-build = "0.6.1"
