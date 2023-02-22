@@ -33,9 +33,9 @@ import (
 
 const ( 
 	VotedNULL = -1
-	MinElectionTimeOut = 150
-	MaxElectionTimeOut = 300
-
+	MinElectionTimeOut = 800
+	MaxElectionTimeOut = 1200
+	// HeartbeatInterval = 100
 )
 
 type CurrentRole int
@@ -435,11 +435,28 @@ func (rf *Raft) ResetElectionTime() {
 }
 // Get the last log term 
 func (rf *Raft) getLastLogTerm() int { 
-	return rf.State_.Log[len(rf.State_.Log) -1 ].Term
+	j := 0
+	if i := len(rf.State_.Log); i > 0 { 
+		j = len(rf.State_.Log) 
+	}
+	return rf.State_.Log[j - 1].Term
 }
 // Get the Last Log index
 func (rf *Raft) getLastLogIndex() int { 
-	return len(rf.State_.Log) -1 
+	j := 0
+	if i := len(rf.State_.Log); i > 0 { 
+		j = len(rf.State_.Log) 
+	}
+	return rf.State_.Log[j - 1].Me
+
+}
+
+func (rf *Raft) IsLogUpdated(index , term int ) bool { 
+
+	if rf.getLastLogTerm() != term { 
+		return rf.getLastLogTerm() > term
+	}
+	return rf.getLastLogIndex() > index 
 }
 
 
@@ -488,7 +505,8 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// if rf.State_.VotedFor == args.CandidateId { return }
 
 	// If the votedFor == nil or Canditate Id == nil and log is updated , grant vote 
-	if rf.State_.VotedFor == VotedNULL || rf.State_.VotedFor == args.CandidateId {
+	if rf.State_.VotedFor == VotedNULL || rf.State_.VotedFor == args.CandidateId && 
+		!rf.IsLogUpdated(args.LastLogIndex, args.Term) {
 		// Reply 
 		reply.Term = rf.State_.CurrentTerm
 		reply.VoteGranted = true
@@ -643,8 +661,12 @@ func (rf *Raft) ticker() {
 						var reply RequestVoteReply
 
 						if rf.sendRequestVote(i, requestArgs, &reply) {
+							
+							// rf.mu.Lock()
+							// defer rf.mu.Unlock()
 							go rf.CollectVotes(rf.State_.CurrentTerm, &reply)
-						}
+						} else { return }
+
 					}
 				}
 
@@ -673,6 +695,13 @@ func (rf *Raft) ticker() {
 // Collect Votes in the current term 
 // If the majority votes has been received then the node to the Leader 
 func (rf* Raft) CollectVotes(term int, reply *RequestVoteReply) { 
+	
+	// rf.mu.Lock()
+	// defer rf.mu.Unlock()
+
+	if rf.State_.CandidateRole != CANDIDATE { return }
+
+	
 	var votes int32 = 1
 
 	if reply.Term > rf.State_.CurrentTerm { 
@@ -682,6 +711,9 @@ func (rf* Raft) CollectVotes(term int, reply *RequestVoteReply) {
 		return 
 	}
 
+	if rf.State_.CurrentTerm != term { 
+		return 
+	}
 	if reply.VoteGranted { 
 		atomic.AddInt32(&votes, 1)
 	}
