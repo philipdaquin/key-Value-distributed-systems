@@ -19,6 +19,8 @@ package raft
 
 import (
 	//	"bytes"
+	// "log"
+	// "log"
 	"log"
 	"math/rand"
 	"sync"
@@ -186,7 +188,7 @@ func (rf *Raft) sendAppendEntries(server int) bool {
 	
 	// Check if the target is alive else return false 
 	// if isAlive := rf.peers[server].Call("Raft.Killed", isAlive); isAlive { return false }
-
+	
 	if rf.State_.CandidateRole != LEADER { return false }
 
 	// Construct the AppendEntries RCP request to send over the AppendEntries 
@@ -203,10 +205,7 @@ func (rf *Raft) sendAppendEntries(server int) bool {
 
 	}
 	var reply NodeReply
-
-
-
-	if ok := rf.peers[server].Call("Raft.ProcessAppendEntries", &args, &reply); !ok { return false }
+	if ok := rf.peers[server].Call("Raft.ProcessAppendEntries", args, &reply); !ok { return false }
 
 	
 	// If success the leader should update the next index and match index for the target node 
@@ -275,7 +274,7 @@ func (rf *Raft) sendAppendEntries(server int) bool {
 }
 
 
-func (rf *Raft) ProcessAppendEntries(server int , args *AppendEntries, reply *NodeReply) {
+func (rf *Raft) ProcessAppendEntries(args *AppendEntries, reply *NodeReply) {
 	
 	// Acquire the lock 
 	rf.mu.Lock()
@@ -405,10 +404,10 @@ type RequestVoteArgs struct {
 	CandidateId int 
 
 	// Index of candidate's last log entry
-	// LastLogIndex int 
+	LastLogIndex int 
 
 	// Term of candidate's last log entry 
-	// LastLogTerm int 
+	LastLogTerm int 
 	// Your data here (2A, 2B).
 }
 
@@ -425,7 +424,7 @@ type RequestVoteReply struct {
 
 // Set normal election timeout, with randomness
 func SetElectionTime() time.Time{
-	randomRange := rand.Intn(MaxElectionTimeOut - MinElectionTimeOut) 
+	randomRange := 50 + (rand.Int63() % 300) * time.Hour.Milliseconds()
 	return time.Now().Add(time.Duration(randomRange) * time.Millisecond)
 }
 
@@ -458,7 +457,7 @@ func (rf *Raft) getLastLogIndex() int {
 //
 //
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
-	// log.Println( rf)
+	// // // log.println( rf)
 	
 	
 	
@@ -474,10 +473,14 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		return 
 	}
 
+
 	if args.Term > rf.State_.CurrentTerm {
 		rf.State_.CandidateRole = FOLLOWER
 		rf.State_.VotedFor = VotedNULL
 		rf.State_.CurrentTerm = args.Term
+		rf.LeaderState_.NextIndex = nil
+		rf.LeaderState_.MatchIndex = nil
+
 		return 
 	}
 
@@ -491,10 +494,10 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		reply.VoteGranted = true
 	
 		// Update the server state 
-		rf.ResetElectionTime()
 		rf.State_.VotedFor = args.CandidateId
 		rf.State_.CandidateRole = FOLLOWER
-	
+		rf.ResetElectionTime()
+		
 		return 
 	}  
 
@@ -591,7 +594,7 @@ func (rf *Raft) ticker() {
 	for rf.killed() == false {
 		var sleepDuration time.Duration 	
 
-		log.Println("YES")
+		// // log.println("YES")
 		// Your code here (2A)
 		rf.mu.Lock()
 		state := rf.State_.CandidateRole
@@ -600,29 +603,22 @@ func (rf *Raft) ticker() {
 
 		switch state { 
 			case FOLLOWER:
-				log.Println("FOLLOWER")
 
-
-				// now := time.Now()
-				// timeLeft := now.Add(-10 * time.Second)
-				timeOutDuration := time.Duration(rand.Intn(MaxElectionTimeOut - MinElectionTimeOut) *int(time.Millisecond) )
 				
-				timeOut := time.Now().Add(timeOutDuration)
 				//	If a follower does not receive any communication from the leader within this timeframe
 				//	it assumes that the leader has failed and starts a new election by trasitioning 
 				//  to the Candidate State
-				if rf.State_.ElectionTimer.After(timeOut) { 
-
-					rf.mu.Lock()
+				rf.mu.Lock()
+				if rf.State_.ElectionTimer.Before(SetElectionTime()) { 
 					rf.State_.CandidateRole = CANDIDATE
-					rf.mu.Unlock()
 				}
+				rf.mu.Unlock()
 			/*
 				Once a follower becomes a candidate, 
 				- increments the current term and send out RequestVote RPC
 			*/
 			case CANDIDATE:
-				log.Println("CANDIDATE")
+				// log.println("CANDIDATE")
 
 				rf.mu.Lock()
 
@@ -647,9 +643,6 @@ func (rf *Raft) ticker() {
 						var reply RequestVoteReply
 
 						if rf.sendRequestVote(i, requestArgs, &reply) {
-							log.Println("SENDING VOTES ")
-							// Candidate collections votes for current term
-							// grant := make(chan bool)
 							go rf.CollectVotes(rf.State_.CurrentTerm, &reply)
 						}
 					}
@@ -661,8 +654,6 @@ func (rf *Raft) ticker() {
 			case LEADER:
 				rf.mu.Lock()
 				
-				log.Println("🚀 LEADER")
-
 				// Leader resets its onw election timeout 
 				rf.ResetElectionTime()
 
@@ -675,7 +666,7 @@ func (rf *Raft) ticker() {
 		}
 		// pause for a random amount of time between 50 and 350
 		// milliseconds.
-		// timeDelay = 50 + (rand.Int63() % 300)
+		// timeDelay = 50 + (rand.Int63() % 300) * time.Milliseconds
 	}
 }
 
@@ -683,7 +674,6 @@ func (rf *Raft) ticker() {
 // If the majority votes has been received then the node to the Leader 
 func (rf* Raft) CollectVotes(term int, reply *RequestVoteReply) { 
 	var votes int32 = 1
-	// done := false 
 
 	if reply.Term > rf.State_.CurrentTerm { 
 		rf.State_.CurrentTerm = reply.Term
@@ -701,11 +691,9 @@ func (rf* Raft) CollectVotes(term int, reply *RequestVoteReply) {
 		// done = true
 		rf.mu.Lock()
 		rf.State_.CandidateRole = LEADER
-		for nodes := range rf.peers { 
-			if nodes != rf.me { 
-				// go rf.sendAppendEntries(nodes)
-			}
-		}
+		log.Println("🚀 LEADER")
+
+		// rf.ReinitialisedAfterElection()
 		
 		rf.mu.Unlock()
 	}
@@ -726,31 +714,40 @@ func (rf* Raft) CollectVotes(term int, reply *RequestVoteReply) {
 
 */
 func (rf *Raft) ReinitialisedAfterElection() {
+	rf.State_.CandidateRole = LEADER
+
 	peerCount := len(rf.peers)
 	
+
+
 	lastLogIndex := rf.getLastLogIndex()
-	// lastLogTerm := rf.State_.Log[len -1].Term
 
 	rf.LeaderState_.NextIndex = make([]int, peerCount)
 
-	for i := range rf.LeaderState_.NextIndex {
+	for i := 0; i < peerCount; i +=1 {
 		rf.LeaderState_.NextIndex[i] = lastLogIndex + 1
 	}
 
-
+	// Initialise the match index 
 	rf.LeaderState_.MatchIndex = make([]int, peerCount)
 
-	for i := range rf.LeaderState_.MatchIndex { 
+	for i := 0; i < peerCount; i +=1 { 
 		rf.LeaderState_.MatchIndex[i] = 0
 	}
-
+	// Set the match index for the leader to its own last log index 
 	rf.LeaderState_.MatchIndex[rf.me] = lastLogIndex 
 
+	
+	// Start sending heartbeat messages to all peers 
+	rf.SendHeartBeats()
+}
+
+func (rf *Raft) SendHeartBeats() { 
 	//	Send append Entries 
-
-	// Sync 
-
-
+	for i := 0; i < len(rf.peers); i +=1 { 
+		// Send an AppendEntries RPC with no entries to each peer
+		go rf.sendAppendEntries(i)
+	}
 }
 
 
@@ -775,8 +772,8 @@ func Make(peers []*labrpc.ClientEnd, me int,
 		CurrentTerm: 0,
 		VotedFor: VotedNULL,
 		Log: []LogEntry{},
-		// LastLogIndex: 0,
-		// LastLogTerm: 0,
+		LastLogIndex: 0,
+		LastLogTerm: 0,
 		CandidateRole: FOLLOWER,
 		ElectionTimer: SetElectionTime(),
 	}
