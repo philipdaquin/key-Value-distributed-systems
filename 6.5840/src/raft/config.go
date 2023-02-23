@@ -468,6 +468,9 @@ func (cfg *config) checkTerms() int {
 			}
 		}
 	}
+
+	
+
 	return term
 }
 
