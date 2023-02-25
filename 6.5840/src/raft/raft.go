@@ -18,19 +18,12 @@ package raft
 //
 
 import (
-	//	"bytes"
-	// "log"
-	// "log"
-	// "fmt"
-	// "fmt"
 	"bytes"
-	// "log"
+	"log"
 	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	//	"6.5840/labgob"
 	"6.5840/labgob"
 	"6.5840/labrpc"
 )
@@ -73,11 +66,16 @@ type ApplyMsg struct {
 	SnapshotIndex int
 }
 
+type SnapshotCmd struct {
+	index int 
+	snapshot []byte
+}
 
+// Log entry 
 type LogEntry struct {
 	
 	// // Node id 
-	// Me int 
+	Me int 
 
 	// Current Terms 
 	Term int
@@ -85,6 +83,19 @@ type LogEntry struct {
 	// Message Log 
 	Command interface{}
 }
+// func (rf *Raft) ResetElectionTime() {
+// 	timeoutDuration := time.Duration(rand.Intn(MaxElectionTimeOut-MinElectionTimeOut)+MinElectionTimeOut) * time.Millisecond
+//     rf.State_.ElectionTimer = time.Now().Add(timeoutDuration)
+// }
+// Get the last log term 
+func (rf *Raft) getLastLogTerm() int { 
+	return rf.State_.Log[rf.getLastLogIndex()].Term
+}
+// Get the Last Log index
+func (rf *Raft) getLastLogIndex() int { 
+	return len(rf.State_.Log) - 1
+}
+
 
 // A Go object implementing a single Raft peer.
 type Raft struct {
@@ -163,6 +174,7 @@ type Channels struct {
 	grantVotes chan bool
 	applyCh chan ApplyMsg
 	heartBeatResp chan bool
+	snapshotCh chan SnapshotCmd
 }
 
 // Invoked by leader to replicate log entries also used as hearts 
@@ -219,7 +231,6 @@ type RequestVoteArgs struct {
 	LastLogTerm int 
 	// Your data here (2A, 2B).
 }
-
 // example RequestVote RPC reply structure.
 // field names must start with capital letters!
 type RequestVoteReply struct {
@@ -231,39 +242,11 @@ type RequestVoteReply struct {
 	VoteGranted bool 
 }
 
-
-// func (rf *Raft) ResetElectionTime() {
-// 	timeoutDuration := time.Duration(rand.Intn(MaxElectionTimeOut-MinElectionTimeOut)+MinElectionTimeOut) * time.Millisecond
-//     rf.State_.ElectionTimer = time.Now().Add(timeoutDuration)
-// }
-// Get the last log term 
-func (rf *Raft) getLastLogTerm() int { 
-	return rf.State_.Log[rf.getLastLogIndex()].Term
-}
-// Get the Last Log index
-func (rf *Raft) getLastLogIndex() int { 
-	return len(rf.State_.Log) - 1
-}
-
-func (self *Raft) NewRequestVoteArgs() *RequestVoteArgs {
-	
-	index, term := self.getLastLogIndex(), self.getLastLogTerm()
-	
-	
-	return &RequestVoteArgs{
-		Term: self.State_.CurrentTerm,
-		CandidateId: self.me,
-		LastLogIndex: index,
-		LastLogTerm: term,
-	}
-}
-
 // Set normal election timeout, with randomness
-func (self *Raft) SetElectionTime() time.Duration {
-	timeoutDuration := time.Duration(360 + rand.Intn(240)) 
-	// log.Println("🛫 New Election Timeout:", timeoutDuration)
+func (self *Raft) setElectionTime() time.Duration {
+	log.Println("🛫 New Election Timeout:")
 
-	return time.Duration(timeoutDuration) 
+	return time.Duration(360 + rand.Intn(240)) 
 }
 
 func (self *Raft) sendMessage(message chan bool, value bool ) { 
@@ -301,7 +284,7 @@ func (rf *Raft) killed() bool {
 }
 
 func (rf *Raft) IsLogUpdated(cindex , cterm int ) bool { 
-	// log.Println("🤔 Checking if the log is updated....")
+	log.Println("🤔 Checking if the log is updated....")
 	lastIndex, lastTerm := rf.getLastLogIndex(), rf.getLastLogTerm()
 	if cterm == lastTerm { 
 		return cindex >= lastIndex
@@ -319,7 +302,7 @@ func (self *Raft) applyLogs() {
 	self.mu.Lock()
 	defer self.mu.Unlock()
 
-	for i := self.VolatileState_.LastApplied + 1; i < self.VolatileState_.CommitIndex; i +=1 { 
+	for i := self.VolatileState_.LastApplied + 1; i <= self.VolatileState_.CommitIndex; i +=1 { 
 		self.channels.applyCh <- ApplyMsg{
 			CommandValid: true,
 			Command: self.State_.Log[i].Command,
@@ -337,23 +320,32 @@ func (rf *Raft) GetState() (int, bool) {
 	// Defer Delay the execution until the nearby function returns  
 	defer rf.mu.Unlock()
 
-	// if rf.State_.CandidateRole == LEADER { 
-	// 	log.Println("✅✅ GOT A LEADER!! TERM: ", rf.State_.CurrentTerm)
-	// }
+	if rf.State_.CandidateRole == LEADER { 
+		log.Println("✅✅ GOT A LEADER!! TERM: ", rf.State_.CurrentTerm)
+	}
 
 	return rf.State_.CurrentTerm, rf.State_.CandidateRole == LEADER
 }
 
+func (self *Raft) stepDown(currentTerm int) {
 
+	currentRole := self.State_.CandidateRole
 
-
-
+	self.State_.CurrentTerm = currentTerm
+	self.State_.CandidateRole = FOLLOWER
+	self.State_.VotedFor = VotedNULL
+	// self.LeaderState_.NextIndex = nil
+	// self.LeaderState_.MatchIndex = nil
+	if currentRole != FOLLOWER { 
+		self.sendMessage(self.channels.stepDown, true)
+	}
+}
 
 
 // =============================LEADER SENDING AppendEntries==================================
 func (rf *Raft) ProcessAppendEntries(args *AppendEntries, reply *AppendEntryReply) {
 
-	// log.Println("🧑‍🏭 Processing AppenEntries")
+	log.Println("🧑‍🏭 Processing AppenEntries")
 
 	// Acquire the lock
 	rf.mu.Lock()
@@ -361,7 +353,7 @@ func (rf *Raft) ProcessAppendEntries(args *AppendEntries, reply *AppendEntryRepl
 	defer rf.persist()
 
 	// Check if received term is less than the current term, reject the request
-	// log.Println("1. Check if there's new leader ")
+	log.Println("1. Check if there's new leader ")
 	if args.Term < rf.State_.CurrentTerm {
 		reply.Term = rf.State_.CurrentTerm
 		reply.Success = false
@@ -371,7 +363,7 @@ func (rf *Raft) ProcessAppendEntries(args *AppendEntries, reply *AppendEntryRepl
 		return
 	}
 	// Update the current term and become a follower if the received term is greater than the current term
-	// log.Println("2. Check if there's new leader ")
+	log.Println("2. Check if there's new leader ")
 	if args.Term > rf.State_.CurrentTerm {
 		rf.stepDown(args.Term)
 	}
@@ -385,14 +377,14 @@ func (rf *Raft) ProcessAppendEntries(args *AppendEntries, reply *AppendEntryRepl
 	reply.ConflictIndex = -1
 	reply.ConflictTerm = -1
 
-	// log.Println("Check if the previous index > last index ")
+	log.Println("Check if the previous index > last index ")
 	if args.PrevLogIndex > lastIndex { 
 		reply.ConflictIndex = lastIndex + 1
 		return
 	}
 
 	// Log consistency fails 
-	// log.Println("Checking Log consistency")
+	log.Println("Checking Log consistency")
 	if xterm := rf.State_.Log[args.PrevLogIndex].Term; xterm != args.PrevLogTerm { 
 		reply.ConflictTerm = xterm 
 
@@ -431,7 +423,7 @@ func (rf *Raft) ProcessAppendEntries(args *AppendEntries, reply *AppendEntryRepl
 
 func (self *Raft) sendAppendEntries(server int, args *AppendEntries, reply *AppendEntryReply) {
 	
-	// log.Println("🛳️ Sending appendEntries ...")
+	log.Println("🛳️ Sending appendEntries ...")
 
 
 	ok := self.peers[server].Call("Raft.ProcessAppendEntries", args, reply); 
@@ -480,9 +472,8 @@ func (self *Raft) sendAppendEntries(server int, args *AppendEntries, reply *Appe
 	} else { 
 		
 		nextIndex := self.getLastLogIndex()
-		for nextIndex >= 0 {
+		for; nextIndex >= 0; nextIndex -- {
 			if self.State_.Log[nextIndex].Term == reply.ConflictTerm { break }
-			nextIndex -=1
 		}
 
 		if nextIndex < 0 { 
@@ -549,21 +540,150 @@ func (rf *Raft) readPersist(data []byte) {
 		deserialised.Decode(&rf.State_.Log) != nil { 
 			panic("Failed to decode Raft Persistent State")
 		}
-
 }
-// ===========================================================================================
+
+func (self *Raft) getRaftState() []byte { 
+	writerBuffer := new(bytes.Buffer)
+	encoded := labgob.NewEncoder(writerBuffer)
+	if  encoded.Encode(self.State_.CurrentTerm) != nil || 
+		encoded.Encode(self.State_.VotedFor) != nil || 
+		encoded.Encode(self.State_.Log) != nil || 
+		encoded.Encode(self.State_.LastLogIndex) != nil || 
+		encoded.Encode(self.State_.LastLogTerm) != nil { 
+			return nil
+		}
+	return writerBuffer.Bytes()
+}
 
 
 // ================================Log Compaction and Snapshotting ===========================
-// the service says it has created a snapshot that has
-// all info up to and including index. this means the
-// service no longer needs the log through (and including)
-// that index. Raft should now trim its log as much as possible.
-func (rf *Raft) Snapshot(index int, snapshot []byte) {
-	// Your code here (2D).
-	return 
+//	Invoked by leader to send chunks of a snapshot to a follower 
+//	Leaders send the chunk in order 
+type InstallSnapShotArgs struct {
+	
+	// Leader's Term  
+	Term int 
+
+	// So follower can redirect clients
+	LeaderId int 
+
+	// The snapshot replaces all entries up through and including this index 
+	//
+	// Once a entries up through the last included index, as well as any prior snapshot
+	LastIncludedIndex int 
+
+	// Term of this entry 
+	LastIncludedTerm int 
+
+	// Raw bytes of the snapshot chunk, starting at offset 
+	Data []byte
+
+	// True if this is the last chunk 
+	Done bool
 }
-// ===========================================================================================
+
+type InstallSnapshotReply struct { 
+	// Current Term for the 
+	Term int 
+}
+
+
+//  The conditional version of the `InstallSnapshot` function that checks if the snapshot is more 
+//  recent than the state machine's current snapshot. 
+//
+//	Return True -- If the snapshot is more recent, and apply the snapshot to the statemachine
+//	
+//  Otherwise, It does nothing and return False
+//		It means the snapshot is an older version
+//		This is because RAFT, and before CondInstall was invoked by the server
+// 		It is not OK for RAFT to go back to snapshot, CondInstallSnapshot should just return False so that the server knows it 
+// 		it shouldnt switch to the snapshot 
+//
+func (self *Raft) CondInstallSnapshot(lastIncludedTerm int, lastIncludedIndex int, snapshot []byte) bool {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+
+	if lastIncludedIndex <= self.VolatileState_.CommitIndex { return false }
+
+	if lastIncludedIndex >= self.getLastLogIndex() {
+		self.State_.Log = make([]LogEntry, 1)
+	} else { 
+		self.State_.Log = self.State_.Log[lastIncludedIndex - self.State_.Log[0].Me: ]
+	}
+	self.State_.Log[0].Me = lastIncludedIndex
+	self.State_.Log[0].Term = lastIncludedTerm
+
+	self.VolatileState_.LastApplied = lastIncludedIndex
+	self.VolatileState_.CommitIndex = lastIncludedIndex
+
+	self.persister.SaveStateAndSnapshot(self.getRaftState(), snapshot)
+
+	
+	return true
+}
+
+func (self *Raft) InstallSnapshot(args *InstallSnapShotArgs, reply *InstallSnapshotReply) {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+
+
+	reply.Term = self.State_.CurrentTerm
+
+	if args.Term < self.State_.CurrentTerm { return }
+
+	if args.Term > self.State_.CurrentTerm { 
+		self.stepDown(args.Term)
+
+		self.persist()
+	}
+
+	if args.LastIncludedIndex <= self.VolatileState_.CommitIndex { return }
+
+	go func()  {
+		self.channels.applyCh <- ApplyMsg{
+			SnapshotValid: true,
+			Snapshot: args.Data,
+			SnapshotTerm: args.LastIncludedTerm,
+			SnapshotIndex: args.LastIncludedIndex,
+		}
+	}()
+
+}
+
+// Send an IntallSnapshot RPC to a node 
+func (self *Raft) sendInstallSnapshot(server int, args *InstallSnapShotArgs, reply *InstallSnapshotReply) bool {
+	ok := self.peers[server].Call("Raft.InstallSnapshot", args, reply); 
+	return ok
+}
+
+// 	At a high level, the Snapshot mehtod is responsible for creating a snapshot 
+// 	of the current state of the Raft System, including the log entries and any associated 
+// 	state machine data.
+//
+//	Once created, we can send it to the followers as part of the normal log replication process
+// 	This involves sending a special message to the follower that includes the snapshot data, along with 
+// 	with information about the last log entry that the follower has already recevied 
+//
+func (self *Raft) Snapshot(index int, snapshot []byte) {
+	log.Println("💽 Snapshot ")
+	// self.channels.snapshotCh <- SnapshotCmd{
+	// 	index: index, 
+	// 	snapshot: snapshot,
+	// }
+	self.mu.Lock()
+	defer self.mu.Unlock()
+
+	prevSnapIndex := self.State_.Log[0].Me
+	if index <= prevSnapIndex { return }
+
+	self.State_.Log = self.State_.Log[index - prevSnapIndex:]
+	self.State_.Log[0].Command = nil
+
+	self.persister.SaveStateAndSnapshot(self.getRaftState(), snapshot)
+
+}
+
+
 
 
 
@@ -575,12 +695,11 @@ func (self *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (2A, 2B).
 	self.mu.Lock()
 	defer self.mu.Unlock()
-	// Persist 
 	defer self.persist()
 
 	// IF currentNodes term is < Raft current term
 	// This means the current Candidate os outdated and there is another leader who
-	// has been elected wiht a higer term
+	// has been elected wiht a higher term
 	if args.Term < self.State_.CurrentTerm { 
 		reply.Term = self.State_.CurrentTerm
 		reply.VoteGranted = false
@@ -588,7 +707,7 @@ func (self *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	}
 
 	// Step down to follower
-	if reply.Term > self.State_.CurrentTerm { 
+	if args.Term > self.State_.CurrentTerm { 
 		self.stepDown(args.Term)
 	}
 
@@ -596,7 +715,7 @@ func (self *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	reply.VoteGranted = false
 	
 	// If the votedFor == nil or Canditate Id == nil and log is updated 
-	// log.Println("👷 Validating a vote...")
+	log.Println("👷 Validating a vote...")
 	if (self.State_.VotedFor == VotedNULL || 
 		self.State_.VotedFor == args.CandidateId) && 
 		self.IsLogUpdated(args.LastLogIndex, args.LastLogTerm) {
@@ -673,23 +792,28 @@ func (self *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Requ
 		self.State_.VoteCount +=1
 		// If count receives the majority of 
 		if self.State_.VoteCount == len(self.peers) / 2 + 1 { 
-			// log.Println("🚀 LEADER", args.Term)
+			log.Println("🚀 LEADER", args.Term)
 			self.sendMessage(self.channels.winElection, true)
 		}
 	}
 }
 
 func (self *Raft) BroadCastRequestVote() { 
-	// log.Println("🚧🚧 BROADCASTING REQUEST VOTES")
+	log.Println("🚧🚧 BROADCASTING REQUEST VOTES")
 	if self.State_.CandidateRole != CANDIDATE {return }
 
 	// Initialise the request for votes 
-	requestVote := self.NewRequestVoteArgs()
-	var voteRequestReply RequestVoteReply
+	requestVote := RequestVoteArgs{
+		Term: self.State_.CurrentTerm,
+		CandidateId: self.me,
+		LastLogIndex: self.getLastLogIndex(),
+		LastLogTerm: self.getLastLogTerm(),
+	}
 
 	for node := range self.peers { 
-		if node == self.me { continue }
-		go self.sendRequestVote(node, requestVote, &voteRequestReply) 
+		if node != self.me { 
+			go self.sendRequestVote(node, &requestVote, &RequestVoteReply{}) 
+		}
 	}
 }
 
@@ -717,6 +841,7 @@ func (self *Raft) Start(command interface{}) (int, int, bool) {
 
 	term := self.State_.CurrentTerm
 	self.State_.Log = append(self.State_.Log, LogEntry{
+		Me: self.getLastLogIndex(),
 		Term: term, 
 		Command: command,
 	})
@@ -728,21 +853,6 @@ func (self *Raft) Start(command interface{}) (int, int, bool) {
 }
 
 
-func (self *Raft) stepDown(currentTerm int) {
-
-	currentRole := self.State_.CandidateRole
-
-	self.State_.CurrentTerm = currentTerm
-	self.State_.CandidateRole = FOLLOWER
-	self.State_.VotedFor = VotedNULL
-	// self.LeaderState_.NextIndex = nil
-	// self.LeaderState_.MatchIndex = nil
-
-
-	if currentRole != FOLLOWER { 
-		self.sendMessage(self.channels.stepDown, true)
-	}
-}
 
 
 
@@ -752,12 +862,11 @@ func (self *Raft) electSelf(role CurrentRole)  {
 	self.mu.Lock()
 	defer self.mu.Unlock()
 
-	// log.Println("💪 ELECTING NODE TO CANDIDATE")
+	log.Println("💪 ELECTING NODE TO CANDIDATE")
+
 	// Ensure the current role is not equal to the role desired  
 	if self.State_.CandidateRole != role { return	}
-
 	self.resetChannels()
-
 	self.State_.CandidateRole = CANDIDATE
 	self.State_.CurrentTerm +=1
 	self.State_.VotedFor = self.me
@@ -782,6 +891,8 @@ func (self *Raft) electSelf(role CurrentRole)  {
 
 */
 func (self *Raft) ReinitialisedAfterElection() {
+
+	log.Println("😎 CONVERTING TO LEADER")
 	self.mu.Lock()
 	defer self.mu.Unlock()
 	
@@ -790,9 +901,9 @@ func (self *Raft) ReinitialisedAfterElection() {
 	self.resetChannels()
 
 	self.State_.CandidateRole = LEADER
-	peerCount := len(self.peers)
-	self.LeaderState_.NextIndex = make([]int, peerCount)
-	self.LeaderState_.MatchIndex = make([]int, peerCount)
+	self.LeaderState_.NextIndex = make([]int, len(self.peers))
+
+	self.LeaderState_.MatchIndex = make([]int, len(self.peers))
 	
 	lastLogIndex := self.getLastLogIndex() + 1
 
@@ -806,8 +917,8 @@ func (self *Raft) ReinitialisedAfterElection() {
 	// }
 	// // Set the match index for the leader to its own last log index 
 	// self.LeaderState_.MatchIndex[self.me] = lastLogIndex 
-	
-	// // Start sending heartbeat messages to all peers 
+	// // Start sending heartbeat messages to all peers
+
 	self.SendHeartBeats()
 }
 
@@ -815,7 +926,7 @@ func (self *Raft) ReinitialisedAfterElection() {
 
 func (self *Raft) SendHeartBeats() { 
 
-	// log.Println("💓💓 Sending heartbearts...")
+	log.Println("💓💓 Sending heartbearts...")
 
 	if self.State_.CandidateRole != LEADER { return }
 	
@@ -825,7 +936,7 @@ func (self *Raft) SendHeartBeats() {
 			// Send an AppendEntries RPC with no entries to each peer
 			
 			// Check if the target is alive else return false
-			// log.Println("👷 Creating new AppendEntry")
+			log.Println("👷 Creating new AppendEntry")
 
 			args := AppendEntries{}
 			
@@ -864,6 +975,8 @@ func (self *Raft) ticker() {
 			case LEADER: 
 				select {
 					case <- self.channels.stepDown: 
+					case <- self.channels.snapshotCh:
+						// Trigger Snapshots
 					case <- time.After(120 * time.Millisecond):
 						self.mu.Lock()
 						self.SendHeartBeats()
@@ -873,7 +986,7 @@ func (self *Raft) ticker() {
 				select {
 					case <- self.channels.grantVotes:
 					case <- self.channels.heartBeatResp:
-					case <- time.After(self.SetElectionTime() * time.Millisecond):
+					case <- time.After(self.setElectionTime() * time.Millisecond):
 						self.electSelf(FOLLOWER)
 				}
 
@@ -884,7 +997,7 @@ func (self *Raft) ticker() {
 						self.ReinitialisedAfterElection()
 
 					// If the election timer has expired then start a new election 
-					case <- time.After(self.SetElectionTime() * time.Millisecond):
+					case <- time.After(self.setElectionTime() * time.Millisecond):
 						self.electSelf(CANDIDATE)
 				}
 		}
@@ -931,14 +1044,14 @@ func Make(peers []*labrpc.ClientEnd, me int, persister *Persister, applyCh chan 
 		NextIndex: nil,
 		MatchIndex: nil,
 	}
-
+	
 	channel := &Channels{
 		winElection: make(chan bool),
 		stepDown: make(chan bool),
 		grantVotes: make(chan bool),
 		applyCh: applyCh,
 		heartBeatResp: make(chan bool),
-
+		snapshotCh: make(chan SnapshotCmd),
 	}
 
 	rf.State_ = *state
