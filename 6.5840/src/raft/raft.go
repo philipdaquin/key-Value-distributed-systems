@@ -75,7 +75,7 @@ type SnapshotCmd struct {
 type LogEntry struct {
 	
 	// // Node id 
-	Me int 
+	// Me int 
 
 	// Current Terms 
 	Term int
@@ -119,6 +119,9 @@ type Raft struct {
 
 	// Concurrent helpers
 	channels Channels
+
+	// Snapshot
+	snapshot Snapshot
 }
 
 // Volatile state on all Leaders 
@@ -166,6 +169,16 @@ type State struct {
 	// ElectionTimer time.Time
 	VoteCount int 
 }
+
+
+type Snapshot struct { 
+	// Index of the last included entry in the snapshot 
+	SnapShotIndex int
+
+	// Term of the last included entry in the snapshot 
+	SnapShotTerm int
+}
+
 
 // Concurrent Channels
 type Channels struct { 
@@ -588,6 +601,85 @@ type InstallSnapshotReply struct {
 }
 
 
+func (self *Raft) getRelativeIndex(index int) int { 
+	if index <= self.snapshot.SnapShotIndex { 
+		return -1
+	}
+	return index - self.snapshot.SnapShotIndex - 1
+}
+
+// Save the snapshot to disk and updates the update the raft accordingly 
+func (self *Raft) saveSnapshot(snapshot []byte, index int) { 
+	
+	// Save the snapshot to disk 
+	self.persister.SaveStateAndSnapshot(self.getRaftState(), snapshot)
+
+	// Update the Raft State
+
+	self.mu.Lock()
+	defer self.mu.Unlock()
+
+	lastIndex := self.getLastLogIndex()
+	// Discard any log entries that come before the snapshot 
+	if index <= lastIndex { return }
+
+	offset := self.getRelativeIndex(index)
+	self.State_.Log = self.State_.Log[offset:]
+	self.State_.LastLogIndex = index
+	self.State_.LastLogTerm  = self.State_.Log[0].Term
+
+	// Update the commit index and last applied index to reflect the new snapshot 
+	self.VolatileState_.CommitIndex = Min(self.VolatileState_.CommitIndex, self.State_.LastLogIndex)
+	self.VolatileState_.LastApplied = Min(self.VolatileState_.LastApplied,self.State_.LastLogIndex  )
+
+	// Update the snapshot index and term 
+	self.snapshot.SnapShotIndex = self.State_.LastLogIndex
+	self.snapshot.SnapShotTerm = self.snapshot.SnapShotTerm
+}
+
+
+// Index in within our current log, 
+// Update the Raft State and SnapshotEntries 
+func (self *Raft) updateSnapshot(index int, snapshot []byte) {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+
+	if self.State_.CandidateRole != LEADER { return }
+	
+	self.saveSnapshot(snapshot, index)
+	self.snapshot.SnapShotIndex = index
+	self.snapshot.SnapShotTerm = self.State_.Log[index].Term
+	
+	self.BroadcastInstallSnapshot()
+	
+}
+
+func (self *Raft) BroadcastInstallSnapshot() {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+
+	log.Println("🏬 Broading casting snapshots")
+
+
+	args := InstallSnapShotArgs{
+		Term: self.State_.CurrentTerm,
+		LeaderId: self.me,
+		LastIncludedIndex: self.State_.LastLogIndex,
+		LastIncludedTerm: self.State_.LastLogTerm,
+		Data: self.persister.ReadSnapshot(),
+		Done: true,
+	}
+
+	var reply InstallSnapshotReply
+	for i := range self.peers { 
+		if i != self.me { 
+			
+			go self.sendInstallSnapshot(i, &args, &reply)
+		}
+	}
+} 
+
+
 //  The conditional version of the `InstallSnapshot` function that checks if the snapshot is more 
 //  recent than the state machine's current snapshot. 
 //
@@ -603,20 +695,20 @@ func (self *Raft) CondInstallSnapshot(lastIncludedTerm int, lastIncludedIndex in
 	self.mu.Lock()
 	defer self.mu.Unlock()
 
-	if lastIncludedIndex <= self.VolatileState_.CommitIndex { return false }
+	// if lastIncludedIndex <= self.VolatileState_.CommitIndex { return false }
 
-	if lastIncludedIndex >= self.getLastLogIndex() {
-		self.State_.Log = make([]LogEntry, 1)
-	} else { 
-		self.State_.Log = self.State_.Log[lastIncludedIndex - self.State_.Log[0].Me: ]
-	}
-	self.State_.Log[0].Me = lastIncludedIndex
-	self.State_.Log[0].Term = lastIncludedTerm
+	// if lastIncludedIndex >= self.getLastLogIndex() {
+	// 	self.State_.Log = make([]LogEntry, 1)
+	// } else { 
+	// 	self.State_.Log = self.State_.Log[lastIncludedIndex - self.State_.Log[0].Me: ]
+	// }
+	// self.State_.Log[0].Me = lastIncludedIndex
+	// self.State_.Log[0].Term = lastIncludedTerm
 
-	self.VolatileState_.LastApplied = lastIncludedIndex
-	self.VolatileState_.CommitIndex = lastIncludedIndex
+	// self.VolatileState_.LastApplied = lastIncludedIndex
+	// self.VolatileState_.CommitIndex = lastIncludedIndex
 
-	self.persister.SaveStateAndSnapshot(self.getRaftState(), snapshot)
+	// self.persister.SaveStateAndSnapshot(self.getRaftState(), snapshot)
 
 	
 	return true
@@ -626,6 +718,7 @@ func (self *Raft) InstallSnapshot(args *InstallSnapShotArgs, reply *InstallSnaps
 	self.mu.Lock()
 	defer self.mu.Unlock()
 
+	log.Println("💽💽 Installing snapshot")
 
 	reply.Term = self.State_.CurrentTerm
 
@@ -665,21 +758,32 @@ func (self *Raft) sendInstallSnapshot(server int, args *InstallSnapShotArgs, rep
 // 	with information about the last log entry that the follower has already recevied 
 //
 func (self *Raft) Snapshot(index int, snapshot []byte) {
-	log.Println("💽 Snapshot ")
-	// self.channels.snapshotCh <- SnapshotCmd{
-	// 	index: index, 
-	// 	snapshot: snapshot,
-	// }
+
 	self.mu.Lock()
 	defer self.mu.Unlock()
+	log.Println("💽 Snapshot ")
 
-	prevSnapIndex := self.State_.Log[0].Me
-	if index <= prevSnapIndex { return }
+	if index <= self.snapshot.SnapShotIndex { return }
+	lastIndex := self.getLastLogIndex()
 
-	self.State_.Log = self.State_.Log[index - prevSnapIndex:]
-	self.State_.Log[0].Command = nil
+	// If the index is beyond the end of our current log
+	// we need to truncate the log 
+	if index < lastIndex { 
+		self.updateSnapshot(index, snapshot)
+	}
+	// Save the current state
+	self.saveSnapshot(snapshot, index)
+	self.snapshot.SnapShotIndex = index
+	self.snapshot.SnapShotTerm = self.State_.Log[index].Term
+	// Save the snapshot and update our metadata
+	self.State_.Log[index] = LogEntry{Term: self.snapshot.SnapShotTerm}
+	// Truncate the log 
+	self.VolatileState_.CommitIndex = index - 1
+	self.VolatileState_.LastApplied = index - 1
 
-	self.persister.SaveStateAndSnapshot(self.getRaftState(), snapshot)
+	// Send the snapshot all follower 
+	self.BroadcastInstallSnapshot()
+
 
 }
 
@@ -841,7 +945,7 @@ func (self *Raft) Start(command interface{}) (int, int, bool) {
 
 	term := self.State_.CurrentTerm
 	self.State_.Log = append(self.State_.Log, LogEntry{
-		Me: self.getLastLogIndex(),
+		// Me: self.getLastLogIndex(),
 		Term: term, 
 		Command: command,
 	})
@@ -975,7 +1079,7 @@ func (self *Raft) ticker() {
 			case LEADER: 
 				select {
 					case <- self.channels.stepDown: 
-					case <- self.channels.snapshotCh:
+					// case <- self.channels.snapshotCh:
 						// Trigger Snapshots
 					case <- time.After(120 * time.Millisecond):
 						self.mu.Lock()
@@ -1040,6 +1144,11 @@ func Make(peers []*labrpc.ClientEnd, me int, persister *Persister, applyCh chan 
 		LastApplied: 0,
 	}
 
+	snapshot := &Snapshot{
+		SnapShotIndex: 0,
+		SnapShotTerm: 0,
+	}
+
 	leaderState := &LeaderState{
 		NextIndex: nil,
 		MatchIndex: nil,
@@ -1058,6 +1167,8 @@ func Make(peers []*labrpc.ClientEnd, me int, persister *Persister, applyCh chan 
 	rf.VolatileState_ = *volatilestate
 	rf.LeaderState_ = *leaderState
 	rf.channels = *channel
+	rf.snapshot = *snapshot
+
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
 
