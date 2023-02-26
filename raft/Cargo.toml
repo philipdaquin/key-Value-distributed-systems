@@ -15,6 +15,7 @@ prost = "0.6.1"
 prost-derive = "0.6.1"
 labcodec = { path = "../crates/labcodec" }
 labrpc = { path = "../crates/labrpc" }
+linearizability = {path = "../crates/linearizability"}
 thiserror = "1.0.38"
 futures = "0.3.26"
 rand = "0.8.5"

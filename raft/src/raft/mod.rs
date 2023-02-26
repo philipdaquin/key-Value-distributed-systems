@@ -45,7 +45,7 @@ pub struct Raft {
     // this peer's index into peers[]
     me: usize, 
 
-    state: Arc<State>
+    pub state: Arc<State>
     
     // Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
@@ -55,8 +55,8 @@ pub struct Raft {
 // The state of the RAFT peers
 #[derive(Clone, Debug, Default)]
 pub struct State { 
-    term: u64, 
-    is_leader: bool
+    pub term: u64, 
+    pub is_leader: bool
 }
 
 impl State { 
