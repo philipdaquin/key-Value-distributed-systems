@@ -38,6 +38,12 @@ type Clerk struct {
 	config   shardctrler.Config
 	make_end func(string) *labrpc.ClientEnd
 	// You will have to modify this struct.
+
+	ClientId int
+	RequestId int 
+	LeaderId int 
+
+
 }
 
 // the tester calls MakeClerk.
