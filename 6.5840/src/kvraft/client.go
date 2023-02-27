@@ -62,7 +62,7 @@ func (ck *Clerk) Get(key string) string {
 	var value string 
 
 	server := leader
-	for { 
+	for ;; server = (server + 1) % len(ck.servers) { 
 		ok := ck.servers[server].Call("KVServer.Get", &getArgs, &getReply)
 
 		if !ok && getReply.Err != ErrWrongLeader { 
@@ -74,8 +74,10 @@ func (ck *Clerk) Get(key string) string {
 		}
 
 		log.Println("Got the value, found the leader at", server)
-		server = (server + 1) & len(ck.servers)
 	}
+
+	ck.LeaderId = server
+
 
 	return value
 }
@@ -106,15 +108,16 @@ func (ck *Clerk) PutAppend(key string, value string, op string) {
 
 	server := leader
 
-	for  {
+	for ;; server = (server + 1) % len(ck.servers) {
 		ok := ck.servers[server].Call("KVServer.PutAppend", &putArgs, &putReply)
 
 		if ok && reply.Err != ErrWrongLeader {
 			break
 		}
 
-		server = (server + 1) & len(ck.servers)
+		
 	}
+	ck.LeaderId = server
 }
 
 func (ck *Clerk) Put(key string, value string) {
