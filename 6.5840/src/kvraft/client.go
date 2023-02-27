@@ -2,7 +2,7 @@ package kvraft
 
 import (
 	"crypto/rand"
-	"fmt"
+	// "fmt"
 	"log"
 	"math/big"
 
@@ -49,28 +49,35 @@ func MakeClerk(servers []*labrpc.ClientEnd) *Clerk {
 // arguments. and reply must be passed as a pointer.
 func (ck *Clerk) Get(key string) string {
 	leader :=  ck.LeaderId
-
+	requestId := ck.RequestId + 1
 
 	// You will have to modify this function.
-	log.Panicln("Getting Value from a key")
+	log.Println("📦 Getting Value from a key")
 	getArgs := GetArgs{
 		Key: key,
 		ClientId: ck.ClientId,
-		RequestId: ck.RequestId + 1,
+		RequestId: requestId,
 	}
 	var getReply GetReply
-	for i := leader; i <  len(ck.servers); i +=1 { 
-		ok := ck.servers[i].Call("KVServer.Get", &getArgs, &getReply)
+	var value string 
 
-		if !ok && getReply.Err != OK { 
-			panic(fmt.Sprint("Something went wrong ", getReply.Err) )
+	server := leader
+	for { 
+		ok := ck.servers[server].Call("KVServer.Get", &getArgs, &getReply)
+
+		if !ok && getReply.Err != ErrWrongLeader { 
+
+			if getReply.Err == OK {
+				value = getReply.Value
+			}
+			break
 		}
 
-		log.Println("Got the value, found the leader at", i)
-		ck.LeaderId = i
+		log.Println("Got the value, found the leader at", server)
+		server = (server + 1) & len(ck.servers)
 	}
 
-	return getReply.Value
+	return value
 }
 
 // shared by Put and Append.
@@ -85,6 +92,7 @@ func (ck *Clerk) PutAppend(key string, value string, op string) {
 	// You will have to modify this function.
 
 	leader  := ck.LeaderId
+	log.Println("🚀 PUTTING Value from a key")
 
 	putArgs := PutAppendArgs{
 		Key: key,
@@ -94,16 +102,18 @@ func (ck *Clerk) PutAppend(key string, value string, op string) {
 		RequestId: ck.RequestId + 1,
 	}
 	var putReply PutAppendReply
+	var reply PutAppendReply
 
-	for i := leader; i < len(ck.servers); i +=1 { 
-		ok := ck.servers[i].Call("KVServer.Put", &putArgs, &putReply)
+	server := leader
 
-		if !ok && putReply.Err != OK { 
-			panic(fmt.Sprint("Something went wrong ", putReply.Err) )
+	for  {
+		ok := ck.servers[server].Call("KVServer.PutAppend", &putArgs, &putReply)
+
+		if ok && reply.Err != ErrWrongLeader {
+			break
 		}
 
-		log.Println("Got the value, found the leader at", i)
-		ck.LeaderId = i
+		server = (server + 1) & len(ck.servers)
 	}
 }
 

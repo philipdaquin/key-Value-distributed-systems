@@ -52,6 +52,7 @@ type KVServer struct {
 
 func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 	// Your code here.
+	log.Println("📞 Received Message, getting the value")
 
 	operation := Op{
 		Type: "Get",
@@ -72,6 +73,8 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 }
 
 func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
+	log.Println("😪 Adding value")
+
 	res, _ := kv.sendMessage(Op{
 		Type: "Put",
 		Key: args.Key,
@@ -90,6 +93,9 @@ func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 }
 
 func (self *KVServer) backgroundApply() {
+
+	log.Println("✅ BackgroundApply")
+
 	for {
 		applyMsg := <- self.applyCh
 
@@ -97,6 +103,9 @@ func (self *KVServer) backgroundApply() {
 
 		index := applyMsg.CommandIndex
 		command := applyMsg.Command.(Op)
+
+		self.mu.Lock()
+
 
 		if command.Type == "Get" {
 			command.Value = self.store[command.Key]
@@ -108,14 +117,15 @@ func (self *KVServer) backgroundApply() {
 				self.lastApplied[command.ClientId] = command.RequestId
 			}
 		}
-
-		if commandCh, ok := self.result[index]; !ok { 
+		commandCh, ok := self.result[index]
+		if !ok { 
 			commandCh = make(chan Op, 1)
 
 			self.result[index] = commandCh
-		} else { 
-			commandCh <- command
-		}
+		} 
+		
+		commandCh <- command
+		
 		self.mu.Unlock()
 	}
 }
