@@ -1,13 +1,21 @@
 package kvraft
 
-import "6.5840/labrpc"
-import "crypto/rand"
-import "math/big"
+import (
+	"crypto/rand"
+	"fmt"
+	"log"
+	"math/big"
+
+	"6.5840/labrpc"
+)
 
 
 type Clerk struct {
 	servers []*labrpc.ClientEnd
 	// You will have to modify this struct.
+	ClientId int 
+	RequestId int
+	LeaderId int 
 }
 
 func nrand() int64 {
@@ -21,6 +29,11 @@ func MakeClerk(servers []*labrpc.ClientEnd) *Clerk {
 	ck := new(Clerk)
 	ck.servers = servers
 	// You'll have to add code here.
+
+	ck.ClientId = int(nrand())
+	ck.LeaderId = 0
+	ck.RequestId = 0
+
 	return ck
 }
 
@@ -35,9 +48,29 @@ func MakeClerk(servers []*labrpc.ClientEnd) *Clerk {
 // must match the declared types of the RPC handler function's
 // arguments. and reply must be passed as a pointer.
 func (ck *Clerk) Get(key string) string {
+	leader :=  ck.LeaderId
+
 
 	// You will have to modify this function.
-	return ""
+	log.Panicln("Getting Value from a key")
+	getArgs := GetArgs{
+		Key: key,
+		ClientId: ck.ClientId,
+		RequestId: ck.RequestId + 1,
+	}
+	var getReply GetReply
+	for i := leader; i <  len(ck.servers); i +=1 { 
+		ok := ck.servers[i].Call("KVServer.Get", &getArgs, &getReply)
+
+		if !ok && getReply.Err != OK { 
+			panic(fmt.Sprint("Something went wrong ", getReply.Err) )
+		}
+
+		log.Println("Got the value, found the leader at", i)
+		ck.LeaderId = i
+	}
+
+	return getReply.Value
 }
 
 // shared by Put and Append.
@@ -50,6 +83,28 @@ func (ck *Clerk) Get(key string) string {
 // arguments. and reply must be passed as a pointer.
 func (ck *Clerk) PutAppend(key string, value string, op string) {
 	// You will have to modify this function.
+
+	leader  := ck.LeaderId
+
+	putArgs := PutAppendArgs{
+		Key: key,
+		Value: value,
+		Op: op,
+		ClientId: ck.ClientId,
+		RequestId: ck.RequestId + 1,
+	}
+	var putReply PutAppendReply
+
+	for i := leader; i < len(ck.servers); i +=1 { 
+		ok := ck.servers[i].Call("KVServer.Put", &putArgs, &putReply)
+
+		if !ok && putReply.Err != OK { 
+			panic(fmt.Sprint("Something went wrong ", putReply.Err) )
+		}
+
+		log.Println("Got the value, found the leader at", i)
+		ck.LeaderId = i
+	}
 }
 
 func (ck *Clerk) Put(key string, value string) {

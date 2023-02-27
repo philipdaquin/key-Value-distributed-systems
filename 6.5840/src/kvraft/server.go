@@ -218,5 +218,7 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 	kv.result = make(map[int]chan Op)
 	kv.store=  make(map[string]string)
 	kv.lastApplied= make(map[int]int)
+	go kv.backgroundApply()
+
 	return kv
 }
