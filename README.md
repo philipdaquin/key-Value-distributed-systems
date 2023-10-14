@@ -1,4 +1,6 @@
-# distributed_systems
+# Distributed Key-Value Store
+A key-value store is a non-relational database. Each unique identifier is stored as a key with its associated value. This data pairing is known as a "key-value" pair.
+
 🚧 Distributed Systems Algorithms  in Rust / Go Revision 
 
 ## Raft Consensus Protocol Diagram 
