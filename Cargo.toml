@@ -8,5 +8,6 @@ members = [
     "raft",
     "crates/labrpc",
     "crates/labcodec",
-    "crates/linearizability"
-, "fly_io_challenge/dist_echo"]
+    "crates/linearizability", 
+    "fly_io_challenge/dist_echo"
+]
